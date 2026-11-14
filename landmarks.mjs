@@ -13,7 +13,9 @@ export function mineAt(x,z){return mines.find(s=>Math.abs(s.x-x)<4&&Math.abs(s.z
 export function hiddenAt(x,z){return !!mineAt(x,z)||sites.some(s=>s.type==='fields'&&Math.abs(x-s.x)<wheat.halfWidth&&Math.abs(z-s.z-wheat.offsetZ)<wheat.halfDepth)}
 export function altitude(x,z){for(const s of sites)if(s.type==='mountains'){const r=Math.hypot(x-s.x,z-s.z+4);if(r<15)return (15-r)*.55}return 0}
 export function treeAt(x,z,pad=0){return woods.some(v=>(v.x-x)**2+(v.z-z)**2<(1.9+pad)**2)}
-export function screened(a,b){const n=Math.ceil(Math.hypot(b.x-a.x,b.z-a.z));for(let i=0;i<=n;i++)if(treeAt(a.x+(b.x-a.x)*i/(n||1),a.z+(b.z-a.z)*i/(n||1)))return true;return false}
+export const sheepSize=[9,6.75,6.75];
+export function sheepAt(herd,x,z){return herd.some(s=>{const dx=x-s.x,dz=z-s.z,c=Math.cos(s.yaw),t=Math.sin(s.yaw);return ((dx*c-dz*t)/(sheepSize[0]/2))**2+((dx*t+dz*c)/(sheepSize[2]/2))**2<1})}
+export function screened(a,b,herd=[]){const n=Math.ceil(Math.hypot(b.x-a.x,b.z-a.z));for(let i=0;i<=n;i++){const x=a.x+(b.x-a.x)*i/(n||1),z=a.z+(b.z-a.z)*i/(n||1);if(treeAt(x,z)||sheepAt(herd,x,z))return true}return false}
 const pasture=sites.filter(s=>s.type==='pasture');
 export function flock(time){
  return pasture.flatMap((s,i)=>[-1,1].map(side=>{

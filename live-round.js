@@ -1,6 +1,6 @@
 import {verts} from './dist/map.mjs';
 import {battleMusic,playCue} from './score.js';
-import {altitude,hiddenAt,mineAt,flock} from './landmarks.mjs';
+import {altitude,hiddenAt,mineAt,flock,sheepSize} from './landmarks.mjs';
 import * as T from 'three';
 import {adventurer} from './garden.js';
 import {bladeKit,returningBlade} from './blades.js';
@@ -71,7 +71,7 @@ export async function liveHarvest(island,read,input){
    button.onclick=()=>input({round:initial.id,skill:'spawn',vertex:Number(id)}).catch(()=>{button.textContent='Retry '+(i+1)});
    picker.append(button);return {button,point}
  });
- const herd=flock(0).map(()=>placeAsset(root,'pasture-sheep',[0,0,0],[4,3,3]));
+ const herd=flock(0).map(()=>placeAsset(root,'pasture-sheep',[0,0,0],sheepSize));
  const projected=new T.Vector3();
  let previousHarvest,arrival=0,wasDown=false,lastKillTime=null;
  await new Promise(resolve=>{function tick(now){const s=read(),h=s?.harvest;if(!h){resolve();return}
