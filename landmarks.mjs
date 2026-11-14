@@ -12,3 +12,10 @@ export function hiddenAt(x,z){return !!mineAt(x,z)||sites.some(s=>s.type==='fiel
 export function altitude(x,z){for(const s of sites)if(s.type==='mountains'){const r=Math.hypot(x-s.x,z-s.z+4);if(r<15)return (15-r)*.55}return 0}
 export function treeAt(x,z,pad=0){return woods.some(v=>(v.x-x)**2+(v.z-z)**2<(1.9+pad)**2)}
 export function screened(a,b){const n=Math.ceil(Math.hypot(b.x-a.x,b.z-a.z));for(let i=0;i<=n;i++)if(treeAt(a.x+(b.x-a.x)*i/(n||1),a.z+(b.z-a.z)*i/(n||1)))return true;return false}
+const pasture=sites.filter(s=>s.type==='pasture');
+export function flock(time){
+ return pasture.flatMap((s,i)=>[-1,1].map(side=>{
+   const phase=time*.65+i+side*.55;
+   return {x:s.x+8*Math.sin(phase),z:s.z+side*4+2*Math.cos(phase),yaw:Math.atan2(8*Math.cos(phase),-2*Math.sin(phase))}
+ }))
+}

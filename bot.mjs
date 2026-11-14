@@ -9,6 +9,11 @@ export function bot(g,p=1){
  const id=type==='Road'?choices[Math.floor(Math.random()*choices.length)]:choices.sort((a,b)=>rank(b)-rank(a))[0];
  move('build',{type,id});return true}
  if(g.phase==='harvest'){const h=g.harvest,a=h.actors[p];if(!a)return;
+ if(h.spawns?.includes(null)){
+   if(h.spawns[p]===null){const ids=Object.keys(g.owns).map(Number).filter(id=>g.owns[id][0]===p);
+     const distanceToDrops=id=>Math.min(...h.drops.map(d=>Math.hypot(d.x-(verts[id].x-370)*16/36,d.z-(verts[id].y-228)*16/36)));
+     fightInput(g,p,{round:h.id,skill:'spawn',vertex:ids.sort((a,b)=>distanceToDrops(a)-distanceToDrops(b))[0]})}return
+ }
  const distance=o=>Math.hypot(o.x-a.x,o.z-a.z);
  const d=h.drops.filter(o=>o.owner===null).sort((u,v)=>distance(u)-distance(v))[0];
  if(d)fightInput(g,p,{round:h.id,x:d.x-a.x,z:d.z-a.z,skill:h.actors[other]&&!hiddenAt(h.actors[other].x,h.actors[other].z)&&distance(h.actors[other])<6?'slash':'dash'});return}
