@@ -25,10 +25,11 @@ function note(g,msg){g.log.unshift(msg);g.log=g.log.slice(0,40)}
 export const center=i=>({x:(tiles[i].x-370)/36*16,z:(tiles[i].y-228)/36*16});
 const corner=p=>{const c=center(p?2:16);return {x:c.x+(p?9:-9),z:c.z+(p?-6:6)}};
 export function production(g,sumRoll){
- const drops=[],eligible=[false,false],demand=zero();
- tiles.forEach((t,i)=>{if(i===g.robber||t.n!==sumRoll)return;const r=terrainRes[t.t];for(const v of t.vs){const b=g.owns[v];if(b)for(let j=0;j<b[1];j++){demand[r]++;drops.push({tile:i,res:r,producer:b[0]})}}});
- const actual=drops.filter(d=>demand[d.res]<=g.bank[d.res]);if(!actual.length){g.phase='main';return}
- const counts={};actual.forEach((d,id)=>{eligible[d.producer]=true;const k=counts[d.tile]||0;counts[d.tile]=k+1;const c=center(d.tile);Object.assign(d,{id,x:c.x+Math.cos(k*2.4)*(3+k*.65),z:c.z+Math.sin(k*2.4)*(3+k*.65),owner:null});g.bank[d.res]--});
+ const actual=[],eligible=[true,true],remaining=g.bank.slice();
+ function add(tile,count){const res=terrainRes[tiles[tile].t];while(count-->0&&remaining[res]>0){remaining[res]--;actual.push({tile,res})}}
+ tiles.forEach((t,i)=>{if(i!==g.robber&&t.n===sumRoll)add(i,Math.max(1,t.vs.reduce((count,v)=>count+(g.owns[v]?.[1]||0),0)))});
+ if(!actual.length){const available=tiles.flatMap((t,i)=>i!==g.robber&&remaining[terrainRes[t.t]]>0?[i]:[]);if(available.length)add(available[randomInt(available.length)],1)}
+ const counts={};actual.forEach((d,id)=>{const k=counts[d.tile]||0;counts[d.tile]=k+1;const c=center(d.tile);Object.assign(d,{id,x:c.x+Math.cos(k*2.4)*(3+k*.65),z:c.z+Math.sin(k*2.4)*(3+k*.65),owner:null});g.bank[d.res]--});
  g.harvest={id:g.turn,sum:sumRoll,eligible,drops:actual,actors:eligible.map((yes,p)=>yes?{...corner(p),dx:p?-1:1,dz:0,ix:0,iz:0,dash:0,cool:0,shield:1,respawn:0,throwCool:0,slash:0,dashCool:0}:null),blades:[],left:45};g.phase='harvest'
 }
 function inside(x,z){return tiles.some((_,i)=>{const c=center(i),a=Math.abs(x-c.x)/16,b=Math.abs(z-c.z)/16;return a<1.2991&&(b+a/Math.sqrt(3))<1.501})}
@@ -48,8 +49,8 @@ export function act(g,p,b){const a=b.action,t=b.type,id=b.id,other=1-p;
  else if(setup){g.setup++;g.p=[0,1,1,0,0][g.setup];g.phase=g.setup===4?'roll':'setupSettlement'}
  else if(free){if(--g.free===0||!legal(g,p,'Road').length)g.phase=g.rolled?'main':'roll'}
  g.roadHolder=award([longest(g,0),longest(g,1)],5,g.roadHolder);note(g,(p?'Coral':'Blue')+' built a '+t.toLowerCase()+'.');victory(g);return}
- if(a==='roll'){requireThat(g.phase==='roll','Already rolled');g.rolled=true;g.dice=[randomInt(1,7),randomInt(1,7)];const n=sum(g.dice);note(g,(p?'Coral':'Blue')+' rolled '+n+'.');if(n===7){g.owed=g.res.map(h=>sum(h)>7?Math.floor(sum(h)/2):0);g.phase=g.owed.some(Boolean)?'discard':'robber'}else production(g,n);return}
- if(a==='robber'){requireThat(g.phase==='robber'&&Number.isInteger(id)&&tiles[id]&&id!==g.robber,'Choose another tile');g.robber=id;if(tiles[id].vs.some(v=>g.owns[v]?.[0]===other)){const cards=g.res[other].flatMap((n,i)=>Array(n).fill(i));if(cards.length){const i=cards[randomInt(cards.length)];g.res[other][i]--;g.res[p][i]++}}g.phase=g.rolled?'main':'roll';return}
+ if(a==='roll'){requireThat(g.phase==='roll','Already rolled');g.rolled=true;g.dice=[randomInt(1,7),randomInt(1,7)];const n=sum(g.dice);note(g,(p?'Coral':'Blue')+' rolled '+n+'.');if(n===7){g.sevenHarvest=true;g.owed=g.res.map(h=>sum(h)>7?Math.floor(sum(h)/2):0);g.phase=g.owed.some(Boolean)?'discard':'robber'}else production(g,n);return}
+ if(a==='robber'){requireThat(g.phase==='robber'&&Number.isInteger(id)&&tiles[id]&&id!==g.robber,'Choose another tile');g.robber=id;if(tiles[id].vs.some(v=>g.owns[v]?.[0]===other)){const cards=g.res[other].flatMap((n,i)=>Array(n).fill(i));if(cards.length){const i=cards[randomInt(cards.length)];g.res[other][i]--;g.res[p][i]++}}g.phase=g.rolled?'main':'roll';if(g.sevenHarvest){delete g.sevenHarvest;production(g,7)}return}
  if(a==='play'){requireThat(['main','roll'].includes(g.phase)&&!g.played,'One development card per turn');const idx=g.dev[p].findIndex(c=>c.type===t&&c.bought<g.turn);requireThat(idx>=0&&t!=='Point','Card unavailable this turn');if(t==='Plenty'){requireThat(five(b.cards)&&sum(b.cards)===Math.min(2,sum(g.bank))&&has(g.bank,b.cards),'Choose available resources');move(g.bank,g.res[p],b.cards)}if(t==='Monopoly'){requireThat(Number.isInteger(id)&&id>=0&&id<5,'Choose resource');g.res[p][id]+=g.res[other][id];g.res[other][id]=0}if(t==='Knight'){g.army[p]++;g.armyHolder=award(g.army,3,g.armyHolder);g.phase='robber'}if(t==='Roads'&&legal(g,p,'Road').length){g.phase='freeRoad';g.free=2}g.dev[p].splice(idx,1);g.offer=null;g.played=true;victory(g);return}
  requireThat(g.phase==='main','Finish the current phase');
  if(a==='bank'){const from=b.from,to=b.to;requireThat(Number.isInteger(from)&&Number.isInteger(to)&&from>=0&&from<5&&to>=0&&to<5&&to!==from,'Choose different resources');const rate=rates(g,p)[from];requireThat(g.res[p][from]>=rate&&g.bank[to]>0,'Trade unavailable');g.res[p][from]-=rate;g.bank[from]+=rate;g.res[p][to]++;g.bank[to]--;g.offer=null;return}

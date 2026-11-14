@@ -28,7 +28,8 @@ setInterval(()=>{const now=Date.now();for(const [token,session] of demos){
  if(game.phase==='harvest'){bot(game);step(game,.05)}
  else if(now-session.decision>700){session.decision=now;bot(game)}
 }},50);
-function snapshot(p,g=room.game,seenTimes=seen){const {dev,deck,res,...state}=g;const harvest=g.harvest&&{...g.harvest,actors:g.harvest.actors.map((a,i)=>a&&i!==p&&hiddenAt(a.x,a.z)?null:a)};return {...state,harvest,ports,seat:p,res:res[p],counts:res.map(h=>h.reduce((a,b)=>a+b,0)),dev:dev[p],deckCount:deck.length,online:seenTimes.map(t=>Date.now()-t<6000),rates:rates(g,p),points:[0,1].map(j=>score(g,j,p===j||g.winner!=null)),legal:Object.fromEntries(['Settlement','City','Road'].map(t=>[t,legal(g,p,t)]))}}
+function harvestView(g,p){return g.harvest&&{...g.harvest,actors:g.harvest.actors.map((a,i)=>a&&i!==p&&hiddenAt(a.x,a.z)?null:a)}}
+function snapshot(p,g=room.game,seenTimes=seen){const {dev,deck,res,...state}=g;const harvest=harvestView(g,p);return {...state,harvest,ports,seat:p,res:res[p],counts:res.map(h=>h.reduce((a,b)=>a+b,0)),dev:dev[p],deckCount:deck.length,online:seenTimes.map(t=>Date.now()-t<6000),rates:rates(g,p),points:[0,1].map(j=>score(g,j,p===j||g.winner!=null)),legal:Object.fromEntries(['Settlement','City','Road'].map(t=>[t,legal(g,p,t)]))}}
 const types={'.mp3':'audio/mpeg','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.html':'text/html','.webp':'image/webp','.glb':'model/gltf-binary','.png':'image/png'};
 const server=http.createServer(async(req,res)=>{function json(status,obj){res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(obj))}
 try{const url=new URL(req.url,'http://localhost');
@@ -46,6 +47,10 @@ try{const url=new URL(req.url,'http://localhost');
  if(demo){demo.seen=Date.now();if(demo.game.phase==='won'&&url.pathname==='/api/join')demo.game=demoGame()}
  else if(practice){practiceSeen=Date.now();if(!room.practice||(room.practice.phase==='won'&&url.pathname==='/api/join')){room.practice=demoGame();dirty=true}}else seen[p]=Date.now();
  const g=demo?demo.game:practice?room.practice:room.game,view=()=>snapshot(p,g,practice?[Date.now(),Date.now()]:seen);
+ if(url.pathname==='/api/harvest'&&req.method==='GET'){
+   if(!g.harvest)return json(200,view());
+   return json(200,{partial:true,revision:g.revision,harvest:harvestView(g,p),online:practice?[true,true]:seen.map(t=>Date.now()-t<6000)})
+ }
  if(url.pathname==='/api/state'&&req.method==='GET')return json(200,view());
  if(req.method!=='POST')return json(405,{error:'POST required'});let body='';for await(const c of req){body+=c;if(body.length>5000)return json(413,{error:'Too large'})}const b=JSON.parse(body||'{}');
  if(url.pathname==='/api/join'){if(practice)return json(200,view());room.joined[p]=true;if(room.joined.every(Boolean)&&g.phase==='waiting'){g.phase='setupSettlement';g.revision++}dirty=true;save();return json(200,view())}
