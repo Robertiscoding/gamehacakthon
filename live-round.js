@@ -1,5 +1,5 @@
 import {verts} from './dist/map.mjs';
-import {battleMusic,playCue,soundButton} from './score.js';
+import {battleMusic,playCue} from './score.js';
 import {altitude,hiddenAt,mineAt,flock} from './landmarks.mjs';
 import * as T from 'three';
 import {adventurer} from './garden.js';
@@ -15,7 +15,7 @@ export async function liveHarvest(island,read,input){
  document.getElementById('biome').textContent='ROLL '+read().harvest.sum;
  const hud=document.createElement('div'),tips=document.createElement('div');hud.className='roundHUD';tips.className='roundControls';arena.append(hud,tips);
  const banner=document.createElement('div');banner.className='harvestBanner';banner.setAttribute('role','status');arena.append(banner);
- const sound=soundButton();arena.append(sound);battleMusic(true);let pickups=0,warps=0;
+ battleMusic(true);let pickups=0,warps=0;
  const local=read().seat,initial=read().harvest;tips.textContent=initial.eligible[local]?'WASD move · Space slash · F throw · Shift dash · E mine tunnel':'Watching the other player collect';
  const actors=initial.eligible.map((eligible,p)=>{if(!eligible)return null;const obj=adventurer(root,p);obj.scale.setScalar(3.4);const tag=document.createElement('canvas');tag.width=256;tag.height=72;const ctx=tag.getContext('2d');ctx.fillStyle=p?'#943553':'#175280';ctx.fillRect(0,0,256,72);ctx.fillStyle='white';ctx.font='bold 43px system-ui';ctx.textAlign='center';ctx.fillText(p===local?'YOU':p?'CORAL':'BLUE',128,52);const badge=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(tag),depthTest:false}));badge.position.y=3.9;badge.scale.set(3,.85,1);badge.renderOrder=8;obj.add(badge);const sword=bladeKit(obj,p?0xff889f:0x63dbf1);sword.position.set(.85,1.4,.45);return {obj,sword}});
  const names=['Wood','Brick','Sheep','Wheat','Ore'],colors=['#78ffc3','#ff946f','#f2fff4','#ffdc57','#bcb4ff'];
@@ -53,7 +53,7 @@ export async function liveHarvest(island,read,input){
  window.addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys.add(e.code);if(!e.repeat)skill=({Space:'slash',KeyF:'throw',KeyE:'mine',ShiftLeft:'dash',ShiftRight:'dash'})[e.code]||skill},opts);window.addEventListener('keyup',e=>keys.delete(e.code),opts);window.addEventListener('blur',()=>keys.clear(),opts);
  canvas.addEventListener('pointerdown',e=>{skill=e.button===2?'throw':'slash'},opts);canvas.addEventListener('contextmenu',e=>e.preventDefault(),opts);
  let lastInputTime=0,lastX,lastZ;
- const timer=setInterval(async()=>{const round=read()?.harvest;if(!round||round.countdown>0||round.outro>0){skill='';return}if(!initial.eligible[local]||sending)return;const x=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')),z=Number(keys.has('KeyS')||keys.has('ArrowDown'))-Number(keys.has('KeyW')||keys.has('ArrowUp'));const now=performance.now();if(!skill&&x===lastX&&z===lastZ&&(!(x||z)||now-lastInputTime<170))return;sending=true;lastX=x;lastZ=z;lastInputTime=now;const k=skill;skill='';if(k==='slash'||k==='throw')playCue('blade');try{await input({round:initial.id,x,z,skill:k})}catch{lastX=undefined}finally{sending=false}},32);
+ const timer=setInterval(async()=>{const round=read()?.harvest;if(!round||round.countdown>0||round.outro>0){skill='';return}if(!initial.eligible[local]||sending)return;const x=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')),z=Number(keys.has('KeyS')||keys.has('ArrowDown'))-Number(keys.has('KeyW')||keys.has('ArrowUp'));const now=performance.now();if(!skill&&x===lastX&&z===lastZ&&(!(x||z)||now-lastInputTime<170))return;sending=true;lastX=x;lastZ=z;lastInputTime=now;const k=skill;skill='';if(k==='slash'||k==='throw')playCue('blade');else if(k==='dash')playCue('dash');try{await input({round:initial.id,x,z,skill:k})}catch{lastX=undefined}finally{sending=false}},32);
  const previousRatio=renderer.getPixelRatio(),shadowUpdates=renderer.shadowMap.autoUpdate;
  renderer.setPixelRatio(Math.min(previousRatio,1.15));renderer.shadowMap.autoUpdate=false;renderer.shadowMap.needsUpdate=true;
  const offset=new T.Vector3(0,184,125);
@@ -78,7 +78,12 @@ export async function liveHarvest(island,read,input){
  picker.hidden=!choosing;
  if(choosing){camera.updateMatrixWorld();for(const {button,point} of buttons){projected.copy(point).project(camera);button.style.left=(50+projected.x*50)+'%';button.style.top=(50-projected.y*50)+'%'}}
  const message=selecting?(choosing?'Choose your settlement':'Waiting for opponent'):h.outro>0?'Resource collection over':h.countdown>0?String(Math.ceil(h.countdown)):h.left>44.25?'START':'';
- banner.classList.toggle('selecting',!!selecting);if(banner.textContent!==message)setText(banner,message);
+ banner.classList.toggle('selecting',!!selecting);if(banner.textContent!==message){
+   if(['3','2','1'].includes(message))playCue('bell');
+   else if(message==='START')playCue('horn');
+   else if(h.outro>0)playCue('trade');
+   setText(banner,message)
+ }
  frame=requestAnimationFrame(tick);
  if(h!==previousHarvest){
    markResources(h);
@@ -100,5 +105,5 @@ export async function liveHarvest(island,read,input){
  h.blades.forEach((b,i)=>{if(!blades[i]){blades[i]=returningBlade();root.add(blades[i])}blades[i].position.set(b.x,1.7+(b.height||0),b.z);blades[i].rotation.y=now*.022});blades.forEach((b,i)=>b.visible=i<h.blades.length);
  const me=h.actors[local],count=h.drops.filter(d=>d.owner===local).length;if(count>pickups)playCue('pickup');pickups=count;if((me?.warps||0)>warps)playCue('mine');warps=me?.warps||0;if(me)setText(tips,mineAt(me.x,me.z)?'Hidden in mine · E to travel':hiddenAt(me.x,me.z)?'Concealed in wheat':'WASD move · Space slash · F throw · Shift dash · E mine tunnel');
  setText(hud,h.eligible.some((yes,i)=>yes&&!s.online[i])?'Waiting for reconnection':Math.ceil(h.left)+'s · '+h.drops.filter(d=>d.owner!=null).length+'/'+h.drops.length+' collected');renderer.render(scene,camera)}tick(performance.now())});
- battleMusic(false);picker.remove();for(const actor of actors)actor?.obj.traverse(o=>{if(o.isSprite){o.material.map.dispose();o.material.dispose()}});banner.remove();sound.remove();cancelAnimationFrame(frame);clearInterval(timer);ev.abort();scene.remove(root);root.traverse(o=>{if(o.geometry?.type==='ExtrudeGeometry'){o.geometry.dispose();o.material.dispose()}});for(const d of drops){d.glow.material.dispose();d.ring.geometry.dispose();d.ring.material.dispose()}glowMap.dispose();for(const {label} of markers.values()){label.material.map.dispose();label.material.dispose()}hud.remove();tips.remove();touch.remove();arena.hidden=true;arena.className='';document.getElementById('pauseRaid').hidden=false;document.querySelector('main').inert=false;renderer.setPixelRatio(previousRatio);renderer.shadowMap.autoUpdate=shadowUpdates;renderer.shadowMap.needsUpdate=true;shared.restore()
+ battleMusic(false);picker.remove();for(const actor of actors)actor?.obj.traverse(o=>{if(o.isSprite){o.material.map.dispose();o.material.dispose()}});banner.remove();cancelAnimationFrame(frame);clearInterval(timer);ev.abort();scene.remove(root);root.traverse(o=>{if(o.geometry?.type==='ExtrudeGeometry'){o.geometry.dispose();o.material.dispose()}});for(const d of drops){d.glow.material.dispose();d.ring.geometry.dispose();d.ring.material.dispose()}glowMap.dispose();for(const {label} of markers.values()){label.material.map.dispose();label.material.dispose()}hud.remove();tips.remove();touch.remove();arena.hidden=true;arena.className='';document.getElementById('pauseRaid').hidden=false;document.querySelector('main').inert=false;renderer.setPixelRatio(previousRatio);renderer.shadowMap.autoUpdate=shadowUpdates;renderer.shadowMap.needsUpdate=true;shared.restore()
 }

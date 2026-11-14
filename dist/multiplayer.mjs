@@ -7,7 +7,7 @@ if(location.hash&&!demo){localStorage.setItem(key,token);history.replaceState(nu
 let s,island,mode='',inRound=false,walking=false,busy=false,lastView='',polling=false;
 function show(title,html){$('dialogtitle').textContent=title;body.innerHTML=html;if(!dialog.open)dialog.showModal()}
 async function api(route,data){const r=await fetch('/api/'+route,{method:data?'POST':'GET',headers:{'X-Practice':practice?'1':'0',Authorization:'Bearer '+token,'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined,cache:'no-store'});const v=await r.json();if(!r.ok)throw Error(v.error||'Connection failed');return v}
-async function action(action,fields={}){if(busy)return;busy=true;try{const fresh=await api('action',{action,...fields,revision:s.revision});dialog.close();mode='';apply(fresh)}catch(e){show('Move unavailable','<p></p>');body.firstChild.textContent=e.message}finally{busy=false}}
+async function action(action,fields={}){if(busy)return;busy=true;try{const fresh=await api('action',{action,...fields,revision:s.revision});if(['bank','respond','offer','buy','play','discard','robber'].includes(action))window.playGameCue('trade');dialog.close();mode='';apply(fresh)}catch(e){show('Move unavailable','<p></p>');body.firstChild.textContent=e.message}finally{busy=false}}
 function button(id,label){return '<button class="buildchoice" data-command="'+id+'">'+label+'</button>'}
 const options=names.map((n,i)=>'<option value="'+i+'">'+n+'</option>').join('');
 function vector(label,tag){return '<fieldset><legend>'+label+'</legend>'+names.map((n,i)=>'<label>'+n+' <input style="width:46px" type="number" min="0" max="19" value="0" data-vector="'+tag+'"></label> ').join('')+'</fieldset>'}
@@ -17,6 +17,7 @@ function cards(){show('Development cards',button('buy','Buy · 1 wool, 1 grain, 
 function rules(){show('Catan for two','<p>Place two settlements and two roads in Blue, Coral, Coral, Blue order. Your second settlement supplies starting resources. Leave at least one empty intersection between buildings.</p><p>Roll, resolve production, then trade and build. Both players enter every harvest. Matching hexes produce at least one pickup even without buildings. If no matching hex can supply a pickup, including on seven, a random unblocked hex supplies one from the bank. Collect pickups by walking over them. Swords and returning blades are active for this 45-second phase only. Hide in wheat or a mining hut. Press E inside a hut to travel to the next brick tile. Trees stop fighters and blades. Climb ore peaks to escape low throws. Unclaimed tokens go back to the bank.</p><p>On seven, hands over seven discard half, rounded down. Move the robber and steal a random card from an adjacent opponent. The robber blocks production.</p><p>Trade with your friend, the bank at 4:1, or a harbor. A settlement scores one, a city two. Longest Road (five or more) and Largest Army (three or more knights) each score two. Reach ten on your turn to win.</p>')}
 const portNames=['Lumber','Brick','Wool','Grain','Ore'];
 function onAction(id){
+ if(id)window.playGameCue('tap');
  if(!s||inRound||walking)return;
  if(id.startsWith('place:'))return action('build',{id:+id.slice(6),type:buildMode()});
  if(id.startsWith('tile:'))return action('robber',{id:+id.slice(5)});
@@ -45,7 +46,14 @@ function draw(){if(!s||!island||inRound||walking)return;const own=s.p===s.seat,p
  const cmds=[['action',act],['build','Build'],['trade','Trade'],['raid','Development cards'],['visit','Roam'],['rules','Rules'],['log','Match log']];locs.forEach(i=>cmds.push([(robber?'tile:':'place:')+i,(robber?'Move robber':build)+' position '+(i+1)]));
  $('access').innerHTML='<b>'+hint+'</b>'+cmds.map(([id,t])=>'<button data-key="'+id+'">'+t+'</button>').join('');$('access').onclick=e=>onAction(e.target.dataset.key)
 }
-function apply(next){if(s&&next.revision<s.revision)return;const previous=s;s=next;if(!island)island=window.createIsland(tiles,verts,edges,onAction);
+function apply(next){if(s&&next.revision<s.revision)return;const previous=s;s=next;
+ if(previous&&previous.revision!==s.revision){
+   if(previous.phase!=='won'&&s.phase==='won')window.playGameCue('victory');
+   else if(s.rolled&&(!previous.rolled||previous.turn!==s.turn))window.playGameCue('dice');
+   else if(s.log[0]?.includes(' built a ')&&(s.log[0]!==previous.log[0]||Object.keys(s.roads).length!==Object.keys(previous.roads).length||Object.keys(s.owns).length!==Object.keys(previous.owns).length))window.playGameCue('build');
+   else if(s.turn!==previous.turn)window.playGameCue('bell')
+ }
+ if(!island)island=window.createIsland(tiles,verts,edges,onAction);
  if(s.phase==='harvest'&&!inRound&&!walking){inRound=true;dialog.close();window.liveHarvest(island,()=>s,b=>api('input',b)).finally(()=>{inRound=false;mode='';draw()})}
  const v=[s.revision,s.phase,...s.online].join();if(v!==lastView){lastView=v;if(previous?.phase!==s.phase)mode='';draw()}}
 async function poll(){if(polling)return;polling=true;try{const update=await api(s?.harvest?'harvest':'state');apply(update.partial?{...s,...update}:update);$('connection').hidden=true}catch{$('connection').hidden=false}finally{polling=false;setTimeout(poll,s?.phase==='harvest'?90:420)}}
