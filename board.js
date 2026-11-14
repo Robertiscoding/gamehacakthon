@@ -1,18 +1,18 @@
 import * as T from 'three';
-import {placeAsset, assetImage} from './assets.js';
+import {placeAsset, assetImage, assetReady} from './assets.js';
 
 import {makeTerrain} from './terrain.js';
 export function createIsland(tiles, vertices, edges, activate) {
   const renderer = new T.WebGLRenderer({antialias:true,alpha:false});
-  renderer.shadowMap.enabled=false;renderer.shadowMap.type=T.PCFSoftShadowMap;
-  renderer.setPixelRatio(Math.min(devicePixelRatio,1.25));
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.8));
   const host=document.getElementById('island');
   host.append(renderer.domElement);
   const canvas=renderer.domElement,scene=new T.Scene(),root=new T.Group(),pieces=new T.Group(),markers=new T.Group();
   scene.add(root,pieces,markers);
   const cam=new T.OrthographicCamera(), ray=new T.Raycaster(), pointer=new T.Vector2();
   let angle=-.18,pitch=.81,zoom=1,last=0,state,width=1,height=1,pick=[],rollTime=0;
-  const highlight=[];let walking=false;
+  const boats=[], highlight=[];let walking=false;
   const world=v=>({x:(v.x-370)/36,z:(v.y-228)/36});
   const ts=tiles.map(world),vs=vertices.map(world);
   const environments=tiles.map((tile,id)=>makeTerrain(root,tile,id,ts[id]));
@@ -32,16 +32,35 @@ export function createIsland(tiles, vertices, edges, activate) {
     return mat;
   }
   const numberPlane=new T.PlaneGeometry(.63,.63);
-  const tokenGeo=new T.CylinderGeometry(.36,.36,.05,12),tokenMat=new T.MeshLambertMaterial({color:0xffedb5});
   tiles.forEach(({t,n},i)=>{
     const {x,z}=ts[i];
     if(!n)return;
-    const token=new T.Mesh(tokenGeo,tokenMat);token.position.set(x,.025,z+.79);root.add(token);
+    const token=placeAsset(root,'token',[x,.025,z+1.14],[.70,.70,.105]);token.rotation.x=-Math.PI/2;
     const label=new T.Mesh(numberPlane,numberLabel(n));
     label.rotation.x=-Math.PI/2;
     label.position.set(x,.136,z+.79);
     root.add(label);label.userData.boardOnly=true;token.userData.boardOnly=true;environments[i].ready.then(()=>{const y=environments[i].surface(0,.79);token.position.y=y+.055;label.position.y=y+.116}).catch(()=>{});
   });
+  edges.forEach(([a,b],i)=>{
+    const adjacent=vertices[a].tiles.filter(t=>vertices[b].tiles.includes(t));
+    if(adjacent.length!==1)return;
+    const u=vs[a],v=vs[b],x=(u.x+v.x)/2,z=(u.z+v.z)/2;
+    const tile=ts[adjacent[0]],dx=(x-tile.x)/1.299,dz=(z-tile.z)/1.299;
+    for(let j=0;j<2;j++){const foam=new T.Mesh(new T.BoxGeometry(1.38-j*.16,.018,.07),new T.MeshBasicMaterial({color:j?0x89e3d9:0xc1f9e4}));foam.position.set(x+dx*(.14+j*.18),-.50,z+dz*(.14+j*.18));foam.rotation.y=-Math.atan2(v.z-u.z,v.x-u.x);root.add(foam)}
+    if(i%4===0)placeAsset(root,'coast-rock',[x+dx*.57,-.55,z+dz*.57],[.52,.27,.37],i);
+  });
+  for(const [slug,x,z,size,yaw] of [
+    ['sloop',-7.7,2.9,1,-.9],['ketch',7.6,-2.3,.88,.48],['fishing-boat',4.5,6.6,.83,-.45]
+  ]){
+    const boat=placeAsset(scene,slug,[x,-.5,z],[1.42*size,1.29*size,.68*size],yaw);
+    boats.push(boat);
+  }
+  placeAsset(root,'palm-islet',[-9.9,-.55,-4.4],[1.65,1.3,1.35],-.18);
+  placeAsset(root,'palm-islet',[10.3,-.55,3.9],[1.88,1.4,1.63],.62);
+  placeAsset(root,'pine-islet',[-7.8,-.55,7],[1.38,.97,1.1],-.42);
+  placeAsset(root,'pine-islet',[5.8,-.55,-8],[1.62,1.05,1.22],1.8);
+  placeAsset(root,'lighthouse',[-7.7,-.52,-1.6],[.86,1.75,.78],.36);
+  const water=new T.Mesh(new T.PlaneGeometry(400,400),new T.ShaderMaterial({vertexShader:'varying vec2 uvWorld;void main(){uvWorld=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 uvWorld;void main(){float d=length(uvWorld);float ripple=sin(uvWorld.y*23.+sin(uvWorld.x*5.))*sin(uvWorld.x*2.5+uvWorld.y);vec3 c=mix(vec3(.47,.76,.76),vec3(.32,.58,.67),smoothstep(5.,15.,d));c+=.055*smoothstep(.87,1.,ripple);gl_FragColor=vec4(c,1.);}' }));water.rotation.x=-Math.PI/2;water.position.y=-.51;root.add(water);
   scene.add(new T.HemisphereLight(0xfff8ed,0xa4a6dc,2.12));
   const sun=new T.DirectionalLight(0xfff0d5,1.77);
   sun.position.set(-7,14,-5);sun.castShadow=true;
@@ -75,8 +94,8 @@ export function createIsland(tiles, vertices, edges, activate) {
     panel(tx,ty,tw,82,15,'#fff4d4','#ffffffaf');txt('TURN '+String(state.turn).padStart(2,'0'),tx+13,ty+15,10,'#62736b',900);txt(state.title,tx+13,ty+41,mobile?18:21,'#21444a',950);
     if(!mobile)txt('Dice  '+diceValues[0]+' + '+diceValues[1],tx+14,ty+65,12,'#52665f',750)
     const bw=mobile?128:136;button('action',state.action,tx+tw-bw-10,ty+14,bw,48,'#f3b74d','#263f3d',15,state.disabled);
-    const cmds=[['build','Build'],['trade','Trade'],['raid',state.seat!=null?'Cards':'Skirmish']];let cw=mobile?Math.min(61,(width-42)/4):68,ay=mobile?y-43:y-46;
-    cmds.forEach(([id,label],i)=>button(id,label,margin+i*(cw+6),ay,cw,34,id==='raid'?'#995137':'#234c54','#fff6dc',13,(id==='raid'&&state.raidDisabled)));
+    const cmds=[['visit','Roam'],['build','Build'],['trade','Trade'],['raid',state.seat!=null?'Cards':'Skirmish']];let cw=mobile?Math.min(61,(width-42)/4):68,ay=mobile?y-43:y-46;
+    cmds.forEach(([id,label],i)=>button(id,label,margin+i*(cw+6),ay,cw,34,id==='raid'?'#995137':'#234c54','#fff6dc',13,(id==='raid'&&state.raidDisabled)||(id==='visit'&&(state.seat!=null?(state.p!==state.seat||state.phase!=='main'):!!state.p))));
     const msg=state.hint;if(state.showHint||state.mode||state.moving||state.rolled){let my=mobile?ay-25:height-162;let max=mobile?width-20:Math.min(480,width*.48);let x=mobile?width/2:width/2+40;ctx.font=f(12);let sw=Math.min(max,ctx.measureText(msg).width+24);panel(x-sw/2,my-13,sw,26,12,'#16434be8');txt(msg,x,my,12,'#fff7d7',750,'center')}
     if(!mobile){txt('Drag to orbit   ·   Scroll to zoom',width/2,height-16,11,'#205860',750,'center')}
     if(menu){const items=[['rules','Rulebook'],['legend','Island legend'],['log','Match log'],['resetCam','Reset camera'],['settings',state.seat!=null?'Game rules':'New match']];items.forEach(([id,label],i)=>button(id,label,width-margin-148,margin+45+i*38,148,33))}
@@ -135,7 +154,7 @@ export function createIsland(tiles, vertices, edges, activate) {
     }
     const rp=ts[s.robber];
     placeAsset(pieces,'robber',[rp.x+.52,.07,rp.z+.48],[.40,.83,.36],.22);
-    if(s.mode==='raid'||s.moving){s.locations.forEach(i=>hitDisk(ts[i].x,ts[i].z,'tile:'+i,1.43,true))}
+    if(s.mode==='visit'||s.mode==='raid'||s.moving){s.locations.forEach(i=>hitDisk(ts[i].x,ts[i].z,'tile:'+i,1.43,true))}
     else if(s.mode){s.locations.forEach(id=>{let v=vs[id];if(s.mode==='Road'){const [a,b]=edges[id].map(i=>vs[i]);v={x:(a.x+b.x)/2,z:(a.z+b.z)/2}}hitDisk(v.x,v.z,'place:'+id,.25)})}
     const stamp=s.turn+':'+s.rolled;if(s.rolled&&stamp!==rollingStamp){rollTime=1.45;dieGroups.forEach(d=>d.visible=true)}rollingStamp=stamp;paint();
   }
@@ -147,7 +166,7 @@ export function createIsland(tiles, vertices, edges, activate) {
   canvas.addEventListener('pointerup',e=>{if(walking)return;if(pressed&&!drag){const id=at(e.clientX,e.clientY);if(id)click(id)}pressed=null;drag=false});canvas.addEventListener('pointercancel',()=>pressed=null);
   canvas.addEventListener('wheel',e=>{if(walking)return;e.preventDefault();zoom=T.MathUtils.clamp(zoom*Math.exp(-e.deltaY*.001),.74,1.65);frameCam()},{passive:false});
   canvas.tabIndex=0;canvas.setAttribute('aria-label','3D Catan island. Drag to orbit, scroll to zoom. Use the adjacent game controls for keyboard play.');
-  function animate(time){requestAnimationFrame(animate);if(document.hidden||walking||!document.getElementById('arena').hidden)return;const dt=Math.min((time-last)/1000,.075);last=time;angle+=(targetYaw-angle)*Math.min(1,dt*12);frameCam();if(!imagesReady&&resourceSlugs.every(slug=>assetImage(slug))){imagesReady=true;paint()}highlight.forEach(m=>m.opacity=.24+.12*Math.sin(time*.003));
+  function animate(time){requestAnimationFrame(animate);if(document.hidden||walking||!document.getElementById('arena').hidden)return;const dt=Math.min((time-last)/1000,.075);last=time;angle+=(targetYaw-angle)*Math.min(1,dt*12);frameCam();boats.forEach((q,i)=>{q.position.y=-.48+Math.sin(time*.0018+i)*.035;q.rotation.z=Math.sin(time*.0012+i)*.035});if(!imagesReady&&resourceSlugs.every(slug=>assetImage(slug))){imagesReady=true;paint()}highlight.forEach(m=>m.opacity=.24+.12*Math.sin(time*.003));
     if(rollTime>0){rollTime=Math.max(0,rollTime-dt);dieGroups.forEach((q,i)=>{let t=1.45-rollTime,k=Math.min(t/.85,1),spin=1-k;const rot=[[0,0],[ -Math.PI/2,0],[0,Math.PI/2],[0,-Math.PI/2],[Math.PI/2,0],[Math.PI,0]][diceValues[i]-1];q.position.set(i*.96-.48,.45+Math.abs(Math.sin(k*Math.PI*2.1))*spin*2,5.5);q.rotation.set(rot[0]+spin*7,spin*4+.16*i,rot[1]+spin*8);if(!rollTime)q.visible=false})}
     renderer.clear();renderer.render(scene,cam);renderer.clearDepth();renderer.render(hudScene,hudCam)}
   scene.background=new T.Color(0x54c8d2);resize();addEventListener('resize',resize);requestAnimationFrame(animate);return {update,takeCamera(id){
@@ -155,7 +174,7 @@ export function createIsland(tiles, vertices, edges, activate) {
     walking=true;const boardWorld=new T.Group();
     const objects=scene.children.filter(o=>!o.isLight);objects.forEach(o=>boardWorld.add(o));scene.add(boardWorld);
     boardWorld.scale.setScalar(scale);boardWorld.position.set(-origin.x*scale,0,-origin.z*scale);boardWorld.updateMatrixWorld(true);
-    markers.visible=false;dieGroups.forEach(d=>d.visible=false);root.traverse(m=>{if(m.userData.boardOnly)m.visible=false});
+    markers.visible=false;root.traverse(m=>{if(m.userData.boardOnly)m.visible=false});
     const fpsLight=sun.shadow.camera;Object.assign(fpsLight,{left:-33,right:33,top:33,bottom:-33,far:135});fpsLight.updateProjectionMatrix();sun.position.set(-26,60,-30);sun.shadow.bias=-.0004;
     return {scene,renderer,canvas,overview:cam.position.clone().sub(new T.Vector3(origin.x,0,origin.z)).multiplyScalar(2.2),restore(){
       objects.forEach(o=>scene.add(o));scene.remove(boardWorld);markers.visible=true;root.traverse(m=>{if(m.userData.boardOnly)m.visible=true});scene.background=backdrop;scene.fog=fog;sun.position.set(-7,14,-5);Object.assign(fpsLight,{left:-11,right:11,top:11,bottom:-11,far:40});fpsLight.updateProjectionMatrix();sun.shadow.bias=-.00025;host.append(canvas);renderer.autoClear=false;walking=false;resize()
