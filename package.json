@@ -2,7 +2,9 @@
   "name": "catan-frontier-duel",
   "private": true,
   "scripts": {
-    "build": "esbuild entry.js --bundle --minify --outfile=dist/frontier.bundle.js"
+    "build": "esbuild entry.js --bundle --minify --outfile=dist/frontier.bundle.js",
+    "start": "node server.mjs",
+    "invite": "node invite.mjs"
   },
   "dependencies": {
     "three": "0.187.0"

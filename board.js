@@ -85,7 +85,7 @@ export function createIsland(tiles, vertices, edges, activate) {
     const brandX=margin,brandY=mobile?25:32;txt('CATAN',brandX,brandY-3,mobile?23:28,'#143e49',1000);txt('FRONTIER DUEL',brandX,brandY+15,9,'#194a52',900);
     button('menu',menu?'×':'☰',width-margin-40,margin,40,36);
     const scoreW=mobile?136:155,sy=mobile?65:75;
-    for(let p=0;p<2;p++){let x=mobile?(p?width-margin-scoreW:margin):margin,y=sy+(mobile?0:p*48);panel(x,y,scoreW,40,12,'#143f49ed','#d9ffef88');panel(x+7,y+6,29,28,8,p?'#e9764d':'#369fe4');txt(p?'R':'Y',x+21.5,y+20,17,'#fff6d7',1000,'center');txt(p?'Rival':'You',x+44,y+20,14);txt(state.points[p]+' VP',x+scoreW-9,y+20,13,'#ffdc87',900,'right')}
+    for(let p=0;p<2;p++){let x=mobile?(p?width-margin-scoreW:margin):margin,y=sy+(mobile?0:p*48);panel(x,y,scoreW,40,12,'#143f49ed','#d9ffef88');panel(x+7,y+6,29,28,8,p?'#e9764d':'#369fe4');txt(state.seat!=null?(p?'C':'B'):(p?'R':'Y'),x+21.5,y+20,17,'#fff6d7',1000,'center');txt(state.seat!=null?(p===state.seat?'You':'Friend'):(p?'Rival':'You'),x+44,y+20,14);txt(state.points[p]+' VP',x+scoreW-9,y+20,13,'#ffdc87',900,'right')}
     if(!mobile){txt('FIRST TO 10 VP',margin+6,sy+104,10,'#22535c',850)}
     const y=height-(mobile?154:106),trayW=mobile?width-margin*2:Math.min(405,width*.37),rH=mobile?44:65;
     panel(margin,y,trayW,rH,14,'#153f49f5','#a7ecdd');if(!mobile)txt('YOUR RESOURCES',margin+14,y+13,10,'#bddecd',900);
@@ -94,11 +94,11 @@ export function createIsland(tiles, vertices, edges, activate) {
     panel(tx,ty,tw,82,15,'#fff4d4','#ffffffaf');txt('TURN '+String(state.turn).padStart(2,'0'),tx+13,ty+15,10,'#62736b',900);txt(state.title,tx+13,ty+41,mobile?18:21,'#21444a',950);
     if(!mobile)txt('Dice  '+diceValues[0]+' + '+diceValues[1],tx+14,ty+65,12,'#52665f',750)
     const bw=mobile?128:136;button('action',state.action,tx+tw-bw-10,ty+14,bw,48,'#f3b74d','#263f3d',15,state.disabled);
-    const cmds=[['visit','Roam'],['build','Build'],['trade','Trade'],['raid','Skirmish']];let cw=mobile?Math.min(61,(width-42)/4):68,ay=mobile?y-43:y-46;
-    cmds.forEach(([id,label],i)=>button(id,label,margin+i*(cw+6),ay,cw,34,id==='raid'?'#995137':'#234c54','#fff6dc',13,(id==='raid'&&state.raidDisabled)||(id==='visit'&&!!state.p)));
-    const msg=state.hint;if(state.mode||state.moving||state.rolled){let my=mobile?ay-25:height-162;let max=mobile?width-20:Math.min(480,width*.48);let x=mobile?width/2:width/2+40;ctx.font=f(12);let sw=Math.min(max,ctx.measureText(msg).width+24);panel(x-sw/2,my-13,sw,26,12,'#16434be8');txt(msg,x,my,12,'#fff7d7',750,'center')}
+    const cmds=[['visit','Roam'],['build','Build'],['trade','Trade'],['raid',state.seat!=null?'Cards':'Skirmish']];let cw=mobile?Math.min(61,(width-42)/4):68,ay=mobile?y-43:y-46;
+    cmds.forEach(([id,label],i)=>button(id,label,margin+i*(cw+6),ay,cw,34,id==='raid'?'#995137':'#234c54','#fff6dc',13,(id==='raid'&&state.raidDisabled)||(id==='visit'&&(state.seat!=null?(state.p!==state.seat||state.phase!=='main'):!!state.p))));
+    const msg=state.hint;if(state.showHint||state.mode||state.moving||state.rolled){let my=mobile?ay-25:height-162;let max=mobile?width-20:Math.min(480,width*.48);let x=mobile?width/2:width/2+40;ctx.font=f(12);let sw=Math.min(max,ctx.measureText(msg).width+24);panel(x-sw/2,my-13,sw,26,12,'#16434be8');txt(msg,x,my,12,'#fff7d7',750,'center')}
     if(!mobile){txt('Drag to orbit   ·   Scroll to zoom',width/2,height-16,11,'#205860',750,'center')}
-    if(menu){const items=[['rules','Rulebook'],['legend','Island legend'],['log','Match log'],['sound',state.muted?'Sound: off':'Sound: on'],['resetCam','Reset camera'],['settings','New match']];items.forEach(([id,label],i)=>button(id,label,width-margin-148,margin+45+i*38,148,33))}
+    if(menu){const items=[['rules','Rulebook'],['legend','Island legend'],['log','Match log'],['resetCam','Reset camera'],['settings',state.seat!=null?'Game rules':'New match']];items.forEach(([id,label],i)=>button(id,label,width-margin-148,margin+45+i*38,148,33))}
     keys=buttons.map(b=>b.id).concat(pick.map(m=>m.userData.key)); texture.needsUpdate=true;
   }
   const dieGroups=[new T.Group(),new T.Group()];dieGroups.forEach(d=>scene.add(d));
@@ -137,8 +137,10 @@ export function createIsland(tiles, vertices, edges, activate) {
     }
     pick.push(m);
   }
+  let portsDrawn=false;
+  function showPorts(ports){portsDrawn=true;for(const port of ports){const [u,v]=port.ends.map(i=>vs[i]),x=(u.x+v.x)/2,z=(u.z+v.z)/2,length=Math.hypot(x,z),image=document.createElement('canvas');image.width=256;image.height=80;const c=image.getContext('2d');c.fillStyle='#324760';c.fillRect(0,0,256,80);c.fillStyle='#fff1bc';c.textAlign='center';c.font='bold 41px system-ui';c.fillText(port.type<0?'3:1':['Wood','Brick','Wool','Grain','Ore'][port.type]+' 2:1',128,54);const sprite=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(image),depthWrite:false}));sprite.position.set(x+x/length*.55,.12,z+z/length*.55);sprite.scale.set(.89,.28,1);sprite.userData.boardOnly=true;root.add(sprite)}}
   function update(s){
-    state=s;diceValues=s.dice;pieces.clear();
+    state=s;if(s.ports&&!portsDrawn)showPorts(s.ports);diceValues=s.dice;pieces.clear();
     markers.traverse(o=>{if(o.geometry?.type==='RingGeometry')o.geometry.dispose();o.material?.dispose()});
     markers.clear();highlight.length=0;pick=[];
     for(const [id,p] of Object.entries(s.roads)){

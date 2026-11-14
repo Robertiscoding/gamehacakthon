@@ -1,6 +1,5 @@
 import './arena.js';
 import {createIsland} from './board.js';
+import {liveHarvest} from './live-round.js';
 window.createIsland=createIsland;
-
-import {playRound} from './scramble.js';
-window.playRound=playRound;
+window.liveHarvest=liveHarvest;
