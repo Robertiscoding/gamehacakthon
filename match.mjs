@@ -33,7 +33,7 @@ export function production(g,sumRoll){
  g.harvest={spawns:[null,null],id:g.turn,sum:sumRoll,eligible,drops:actual,actors:eligible.map((yes,p)=>yes?{...corner(p),dx:p?-1:1,dz:0,ix:0,iz:0,dash:0,cool:0,shield:1,respawn:0,throwCool:0,slash:0,dashCool:0}:null),blades:[],countdown:3,left:45};g.phase='harvest'
 }
 function inside(x,z){return tiles.some((_,i)=>{const c=center(i),a=Math.abs(x-c.x)/16,b=Math.abs(z-c.z)/16;return a<1.2991&&(b+a/Math.sqrt(3))<1.501})}
-function ko(h,p){const a=h.actors[p];if(!a||a.shield>0||a.respawn>0||a.dash>0)return;a.respawn=.8;a.ix=a.iz=0}
+function ko(h,p){const a=h.actors[p];if(!a||a.shield>0||a.respawn>0||a.dash>0)return;a.respawn=2;a.ix=a.iz=0;h.lastKill={victim:p,killer:1-p,at:h.left}}
 export function fightInput(g,p,b){const h=g.harvest,a=h?.actors[p];requireThat(g.phase==='harvest'&&a&&h.id===b.round,'No active harvest for this player');if(h.spawns?.includes(null)){
  if(b.skill==='spawn'&&h.spawns[p]===null){
    requireThat(Number.isInteger(b.vertex)&&g.owns[b.vertex]?.[0]===p,'Choose one of your settlements or cities');
@@ -41,7 +41,7 @@ export function fightInput(g,p,b){const h=g.harvest,a=h?.actors[p];requireThat(g
  }
  return
 }
-if(h.countdown>0||h.outro>0)return;const x=Number(b.x),z=Number(b.z);requireThat(Number.isFinite(x)&&Number.isFinite(z),'Invalid movement');const len=Math.max(1,Math.hypot(x,z));a.ix=x/len;a.iz=z/len;a.inputAt=Date.now();if(x||z){a.dx=x/Math.hypot(x,z);a.dz=z/Math.hypot(x,z)}if(a.respawn>0)return;const other=h.actors[1-p];if(b.skill==='mine'&&!(a.mineCool>0)){const here=mineAt(a.x,a.z);if(here){const dest=mines[(mines.indexOf(here)+1)%mines.length];a.x=dest.x;a.z=dest.z+1;a.mineCool=1.2;a.warps=(a.warps||0)+1}}if(b.skill==='dash'&&a.dashCool<=0){a.dash=.21;a.dashCool=1.1}if(b.skill==='slash'&&a.cool<=0){a.cool=.48;a.slash=.25;if(other&&Math.hypot(other.x-a.x,other.z-a.z)<6.5&&!screened(a,other)&&Math.abs(altitude(a.x,a.z)-altitude(other.x,other.z))<3)ko(h,1-p)}if(b.skill==='throw'&&a.throwCool<=0){a.throwCool=1.2;h.blades.push({p,height:altitude(a.x,a.z),x:a.x,z:a.z,dx:a.dx,dz:a.dz,age:0})}}
+if(h.countdown>0||h.outro>0||a.respawn>0)return;const x=Number(b.x),z=Number(b.z);requireThat(Number.isFinite(x)&&Number.isFinite(z),'Invalid movement');const len=Math.max(1,Math.hypot(x,z));a.ix=x/len;a.iz=z/len;a.inputAt=Date.now();if(x||z){a.dx=x/Math.hypot(x,z);a.dz=z/Math.hypot(x,z)}const other=h.actors[1-p];if(b.skill==='mine'&&!(a.mineCool>0)){const here=mineAt(a.x,a.z);if(here){const dest=mines[(mines.indexOf(here)+1)%mines.length];a.x=dest.x;a.z=dest.z+1;a.mineCool=1.2;a.warps=(a.warps||0)+1}}if(b.skill==='dash'&&a.dashCool<=0){a.dash=.21;a.dashCool=1.1}if(b.skill==='slash'&&a.cool<=0){a.cool=.48;a.slash=.25;if(other&&Math.hypot(other.x-a.x,other.z-a.z)<6.5&&!screened(a,other)&&Math.abs(altitude(a.x,a.z)-altitude(other.x,other.z))<3)ko(h,1-p)}if(b.skill==='throw'&&a.throwCool<=0){a.throwCool=1.2;h.blades.push({p,height:altitude(a.x,a.z),x:a.x,z:a.z,dx:a.dx,dz:a.dz,age:0})}}
 export function step(g,dt){const h=g.harvest;if(!h||h.spawns?.includes(null))return;
  if(h.countdown>0){h.countdown=Math.max(0,h.countdown-dt);return}
  if(h.outro>0){h.outro-=dt;if(h.outro<=0){g.harvest=null;g.phase='main';g.revision++}return}
