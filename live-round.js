@@ -73,7 +73,7 @@ export async function liveHarvest(island,read,input){
  });
  const herd=flock(0).map(()=>placeAsset(root,'pasture-sheep',[0,0,0],[4,3,3]));
  const projected=new T.Vector3();
- let previousHarvest,arrival=0;
+ let previousHarvest,arrival=0,wasDown=false,lastKillTime=null;
  await new Promise(resolve=>{function tick(now){const s=read(),h=s?.harvest;if(!h){resolve();return}
  const selecting=h.spawns?.includes(null),choosing=selecting&&h.spawns[local]===null;
  picker.hidden=!choosing;
@@ -91,6 +91,10 @@ export async function liveHarvest(island,read,input){
  }
  frame=requestAnimationFrame(tick);
  if(h!==previousHarvest){
+   if(dead>0&&!wasDown)playCue('death');
+   if(dead===0&&wasDown&&!h.outro)playCue('respawn');
+   if(kill?.killer===local&&kill.at!==lastKillTime&&kill.at-h.left<2)playCue('kill');
+   wasDown=dead>0;lastKillTime=kill?.at??null;
    markResources(h);
    flock(45-h.left).forEach((animal,i)=>{herd[i].position.set(animal.x,0,animal.z);herd[i].rotation.y=animal.yaw});
    const duration=Math.min(180,Math.max(50,now-arrival));arrival=now;previousHarvest=h;
