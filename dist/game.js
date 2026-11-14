@@ -43,11 +43,13 @@ function finish(){if(g.winner!==null||!g.rolled||g.moving)return;g.p=1-g.p;g.rol
 function siteValue(v){return verts[v].tiles.reduce((s,i)=>s+(tiles[i].n?6-Math.abs(7-tiles[i].n):0),0)}
 function roadValue(e){const potential=edges[e].map(v=>{if(!g.owns[v]&&adjacent(v).every(n=>!g.owns[n]))return 20+siteValue(v);return adjacent(v).some(n=>!g.owns[n]&&adjacent(n).every(m=>!g.owns[m]))?7:0});return Math.max(...potential)+Math.random()*2}
 function bot(){if(!g.p||g.winner!==null||g.duel)return;if(!g.rolled)roll();if(g.duel)return;if(g.turn%8===0&&g.lastRaid!==g.turn){const targets=tiles.flatMap((t,i)=>t.vs.some(v=>g.owns[v]?.[0]===0)?[i]:[]);if(targets.length){launchRaid(targets[Math.floor(Math.random()*targets.length)],1,false);return}}if(g.moving)moveRobber((g.robber+1)%19);for(let n=0;n<4&&g.winner===null;n++){const desired=['City','Settlement','Road'].filter(t=>legal(t,1).length);let type=desired.find(t=>affordable(t,1));if(!type){let traded=false;for(const t of desired){const need=costs[t].findIndex((v,i)=>g.res[1][i]<v),give=g.res[1].findIndex((v,i)=>v>=4+costs[t][i]);if(need>=0&&give>=0){g.res[1][give]-=4;g.res[1][need]++;traded=true;break}}if(traded)continue;break}let options=legal(type,1).map(id=>({id,value:type==='Road'?roadValue(id):siteValue(id)})).sort((a,b)=>b.value-a.value);build(type,options[0].id,1)}draw();if(g.winner===null)botTimer=setTimeout(finish,850)}
-let island;
+let island,visiting=false;
+function visitTile(i){if(visiting||g.p||!tiles[i])return;visiting=true;mode='';draw();window.startArena(tiles[i].t,false,()=>{visiting=false;draw()},island,i,true).catch(e=>{visiting=false;show('Tile unavailable','<p>The landscape could not load. Reload to try again.</p>');console.error(e)})}
 function onAction(id){
- if(g.duel)return;
- if(id.startsWith('tile:')){const i=Number(id.slice(5));if(mode==='raid'&&raidTargets().includes(i))launchRaid(i,0,false);else if(g.moving&&!g.p)moveRobber(i);return}
+ if(g.duel||visiting)return;
+ if(id.startsWith('tile:')){const i=Number(id.slice(5));if(mode==='visit'){visitTile(i);return}if(mode==='raid'&&raidTargets().includes(i))launchRaid(i,0,false);else if(g.moving&&!g.p)moveRobber(i);return}
  if(id.startsWith('place:')){if(costs[mode])build(mode,Number(id.slice(6)),0);return}
+ if(id==='visit'){if(g.p)return;mode=mode==='visit'?'':'visit';draw();return}
  if(id==='raid'){if(g.p||g.moving||g.winner!==null||g.lastRaid===g.turn)return;mode=mode==='raid'?'':'raid';draw();return}
  if(id==='action'){if(g.winner!==null)restart();else if(g.p||g.moving)return;else if(mode){mode='';draw()}else if(g.rolled)finish();else roll();return}
  if(id==='build'){show('Build on the island',Object.keys(costs).map(t=>'<button class="buildchoice" data-choice="'+t+'"><b>'+t+'</b><span>'+costText(t)+'</span></button>').join(''));return}
@@ -57,20 +59,20 @@ function onAction(id){
 $('dialogbody').addEventListener('click',e=>{const t=e.target.closest('[data-choice]')?.dataset.choice;if(t){$('dialog').close();choose(t)}});
 function draw(){
  save();const moving=g.moving&&!g.p;
- const locations=mode==='raid'?raidTargets():moving?tiles.flatMap((_,i)=>i!==g.robber?[i]:[]):mode?legal(mode,0):[];
+ const locations=mode==='visit'?tiles.map((_,i)=>i):mode==='raid'?raidTargets():moving?tiles.flatMap((_,i)=>i!==g.robber?[i]:[]):mode?legal(mode,0):[];
  const title=g.winner!==null?(g.winner?'Rival wins':'You win!'):g.p?'Rival’s turn':'Your turn';
  const action=g.winner!==null?'Play again':g.p?'Thinking…':moving?'Move robber':mode?'Cancel':g.rolled?'End turn':'Roll dice';
- const hint=moving?'Choose the robber’s next tile.':mode==='raid'?'Choose a glowing tile to raid.':mode?'Choose a glowing spot for your '+mode.toLowerCase()+'.':g.rolled?'Rolled '+(g.dice[0]+g.dice[1])+'. Build, trade or end your turn.':'Roll to collect resources.';
+ const hint=mode==='visit'?'Choose any tile to explore.':moving?'Choose the robber’s next tile.':mode==='raid'?'Choose a glowing tile to raid.':mode?'Choose a glowing spot for your '+mode.toLowerCase()+'.':g.rolled?'Rolled '+(g.dice[0]+g.dice[1])+'. Build, trade or end your turn.':'Roll to collect resources.';
  const data={...g,moving,mode,locations,points:[points(0),points(1)],res:g.res[0],title,action,hint,muted,disabled:g.winner===null&&(!!g.p||!!moving),raidDisabled:!!g.p||!!g.duel||!!g.moving||g.winner!==null||g.lastRaid===g.turn};
  if(!island){try{island=window.createIsland(tiles,verts,edges,onAction)}catch(err){console.error(err);$('island').textContent='The 3D island needs WebGL 2. Please enable hardware acceleration and reload.'}}
  island?.update(data);
- const choices=[['action',action,data.disabled],['build','Build'],['trade','Trade'],['raid','Raid a settlement',data.raidDisabled],['rules','Rulebook'],['legend','Island legend'],['log','Match log'],['sound','Toggle sound'],['settings','New match']];
- locations.forEach(i=>{const tile=mode==='raid'||moving;choices.push([(tile?'tile:':'place:')+i,tile?'Select '+tiles[i].t+' tile '+(i+1):'Place '+mode+' at '+(i+1)])});
+ const choices=[['action',action,data.disabled],['visit','Visit a tile',!!g.p],['build','Build'],['trade','Trade'],['raid','Raid a settlement',data.raidDisabled],['rules','Rulebook'],['legend','Island legend'],['log','Match log'],['sound','Toggle sound'],['settings','New match']];
+ locations.forEach(i=>{const tile=mode==='visit'||mode==='raid'||moving;choices.push([(tile?'tile:':'place:')+i,tile?'Select '+tiles[i].t+' tile '+(i+1):'Place '+mode+' at '+(i+1)])});
  $('access').innerHTML='<b>'+title+'</b><span>'+hint+'</span>'+choices.map(([id,label,disabled])=>'<button data-key="'+id+'" '+(disabled?'disabled':'')+'>'+label+'</button>').join('');
 }
 $('access').onclick=e=>{if(e.target.dataset.key)onAction(e.target.dataset.key)};
 draw();if(g.p&&g.winner===null)botTimer=setTimeout(bot,850);
 function raidTargets(){return tiles.flatMap((t,i)=>t.vs.some(v=>g.owns[v]?.[0]===1)?[i]:[])}
 function launchRaid(tile,attacker,robber){if(g.duel)return;mode='';g.lastRaid=g.turn;g.duel={tile,attacker,robber};draw();enterRaid()}
-function enterRaid(){const d=g.duel;window.startArena(tiles[d.tile].t,d.attacker===1,won=>{const winner=won?0:1,loser=1-winner;let card=take(loser);if(card<0)card=terrainRes[tiles[d.tile].t]??0;g.res[winner][card]++;g.wins??=[0,0];g.wins[winner]++;if(points(winner)>=10)g.winner=winner;const message=(won?'You won':'Your rival won')+' the duel and claimed one '+names[card].toLowerCase()+'.'+(g.wins[winner]%3===0?' Three duel victories earned one victory point.':'');log(message);delete g.duel;draw();show(won?'Duel won':'Duel lost','<p>'+message+'</p><button class="primary" onclick="dialog.close()">Return to table</button>');if(g.p&&g.winner===null)$('dialog').addEventListener('close',()=>{botTimer=setTimeout(bot,650)},{once:true})})}
+function enterRaid(){const d=g.duel;window.startArena(tiles[d.tile].t,d.attacker===1,won=>{const winner=won?0:1,loser=1-winner;let card=take(loser);if(card<0)card=terrainRes[tiles[d.tile].t]??0;g.res[winner][card]++;g.wins??=[0,0];g.wins[winner]++;if(points(winner)>=10)g.winner=winner;const message=(won?'You won':'Your rival won')+' the duel and claimed one '+names[card].toLowerCase()+'.'+(g.wins[winner]%3===0?' Three duel victories earned one victory point.':'');log(message);delete g.duel;draw();show(won?'Duel won':'Duel lost','<p>'+message+'</p><button class="primary" onclick="dialog.close()">Return to table</button>');if(g.p&&g.winner===null)$('dialog').addEventListener('close',()=>{botTimer=setTimeout(bot,650)},{once:true})},island,d.tile).catch(error=>{console.error(error);show('Raid unavailable','<p>Reload to resume this raid once the models are available.</p>')})}
 if(g.duel){clearTimeout(botTimer);enterRaid()}

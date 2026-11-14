@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {placeAsset, assetImage, assetReady} from './assets.js';
 
+import {makeTerrain} from './terrain.js';
 export function createIsland(tiles, vertices, edges, activate) {
   const renderer = new T.WebGLRenderer({antialias:true,alpha:false});
   renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
@@ -11,13 +12,10 @@ export function createIsland(tiles, vertices, edges, activate) {
   scene.add(root,pieces,markers);
   const cam=new T.OrthographicCamera(), ray=new T.Raycaster(), pointer=new T.Vector2();
   let angle=-.18,pitch=.81,zoom=1,last=0,state,width=1,height=1,pick=[],rollTime=0;
-  const boats=[], highlight=[];
+  const boats=[], highlight=[];let walking=false;
   const world=v=>({x:(v.x-370)/36,z:(v.y-228)/36});
   const ts=tiles.map(world),vs=vertices.map(world);
-  const scenerySize={
-    forest:[1.75,1.05,1.08], fields:[1.74,.92,1.08], pasture:[1.68,.63,.95],
-    mountains:[1.85,1.26,1.15], hills:[1.72,.83,1.07], desert:[1.65,.75,1.02]
-  };
+  const environments=tiles.map((tile,id)=>makeTerrain(root,tile,id,ts[id]));
   const tokenTextures=new Map();
   function numberLabel(n) {
     if(tokenTextures.has(n))return tokenTextures.get(n);
@@ -36,21 +34,12 @@ export function createIsland(tiles, vertices, edges, activate) {
   const numberPlane=new T.PlaneGeometry(.63,.63);
   tiles.forEach(({t,n},i)=>{
     const {x,z}=ts[i];
-    const rotated=['fields','mountains','hills'].includes(t);
-    const tile=placeAsset(root,'tile-'+t,[x,-.47,z],rotated?[2.98,.48,2.58]:[2.58,.48,2.98],rotated?Math.PI/2:0);
-    assetReady(tile).then(()=>tile.traverse(o=>{
-      if(!o.isMesh)return;
-      o.castShadow=false;
-      if(t==='forest')o.material=new T.MeshBasicMaterial({map:o.material.map,color:0xcce7ba,side:T.DoubleSide});
-    })).catch(()=>{});
-    placeAsset(root,'mini-'+t,[x,.025,z-.25],scenerySize[t],Math.sin(i*3)*.14);
     if(!n)return;
-    const token=placeAsset(root,'token',[x,.079,z+1.14],[.70,.70,.105]);
-    token.rotation.x=-Math.PI/2;
+    const token=placeAsset(root,'token',[x,.025,z+1.14],[.70,.70,.105]);token.rotation.x=-Math.PI/2;
     const label=new T.Mesh(numberPlane,numberLabel(n));
     label.rotation.x=-Math.PI/2;
     label.position.set(x,.136,z+.79);
-    root.add(label);
+    root.add(label);label.userData.boardOnly=true;token.userData.boardOnly=true;environments[i].ready.then(()=>{const y=environments[i].surface(0,.79);token.position.y=y+.055;label.position.y=y+.116}).catch(()=>{});
   });
   edges.forEach(([a,b],i)=>{
     const adjacent=vertices[a].tiles.filter(t=>vertices[b].tiles.includes(t));
@@ -84,10 +73,9 @@ export function createIsland(tiles, vertices, edges, activate) {
   Object.assign(sun.shadow.camera,{left:-11,right:11,top:11,bottom:-11,near:.5,far:40});
   sun.shadow.mapSize.set(2048,2048);sun.shadow.normalBias=.018;sun.shadow.bias=-.00025;
   scene.add(sun);
-  const hudCanvas=document.createElement('canvas'),ctx=hudCanvas.getContext('2d');
-  hudCanvas.setAttribute('aria-hidden','true');
-  Object.assign(hudCanvas.style,{position:'absolute',inset:'0',pointerEvents:'none'});
-  host.append(hudCanvas);
+  const hudScene=new T.Scene(),hudCam=new T.OrthographicCamera(-1,1,1,-1,.1,10);hudCam.position.z=2;
+  const hudCanvas=document.createElement('canvas'),ctx=hudCanvas.getContext('2d'),texture=new T.CanvasTexture(hudCanvas);texture.colorSpace=T.SRGBColorSpace;texture.generateMipmaps=false;texture.minFilter=T.LinearFilter;
+  const hudPlane=new T.Mesh(new T.PlaneGeometry(2,2),new T.MeshBasicMaterial({map:texture,transparent:true,depthTest:false,depthWrite:false}));hudScene.add(hudPlane);renderer.autoClear=false;
   let buttons=[], hover='',pressed=null,drag=false,menu=false,selection=0,keys=[],targetYaw=angle,rollingStamp='',diceValues=[3,5];
   const f=(s,w=800)=>w+' '+s+'px "Avenir Next", "Trebuchet MS", system-ui, sans-serif';
   function panel(x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.lineWidth=1.5;ctx.strokeStyle=stroke;ctx.stroke()}}
@@ -112,12 +100,12 @@ export function createIsland(tiles, vertices, edges, activate) {
     panel(tx,ty,tw,82,15,'#fff4d4','#ffffffaf');txt('TURN '+String(state.turn).padStart(2,'0'),tx+13,ty+15,10,'#62736b',900);txt(state.title,tx+13,ty+41,mobile?18:21,'#21444a',950);
     if(!mobile)txt('Dice  '+diceValues[0]+' + '+diceValues[1],tx+14,ty+65,12,'#52665f',750)
     const bw=mobile?128:136;button('action',state.action,tx+tw-bw-10,ty+14,bw,48,'#f3b74d','#263f3d',15,state.disabled);
-    const cmds=[['build','Build'],['trade','Trade'],['raid',state.mode==='raid'?'Cancel raid':'Raid']];let cw=mobile?65:78,ay=mobile?y-43:y-46;
-    cmds.forEach(([id,label],i)=>button(id,label,margin+i*(cw+6),ay,cw,34,id==='raid'?'#995137':'#234c54','#fff6dc',13,id==='raid'&&state.raidDisabled));
+    const cmds=[['visit','Visit'],['build','Build'],['trade','Trade'],['raid',state.mode==='raid'?'Cancel raid':'Raid']];let cw=mobile?Math.min(61,(width-42)/4):68,ay=mobile?y-43:y-46;
+    cmds.forEach(([id,label],i)=>button(id,label,margin+i*(cw+6),ay,cw,34,id==='raid'?'#995137':'#234c54','#fff6dc',13,(id==='raid'&&state.raidDisabled)||(id==='visit'&&!!state.p)));
     const msg=state.hint;if(state.mode||state.moving||state.rolled){let my=mobile?ay-25:height-162;let max=mobile?width-20:Math.min(480,width*.48);let x=mobile?width/2:width/2+40;ctx.font=f(12);let sw=Math.min(max,ctx.measureText(msg).width+24);panel(x-sw/2,my-13,sw,26,12,'#16434be8');txt(msg,x,my,12,'#fff7d7',750,'center')}
     if(!mobile){txt('Drag to orbit   ·   Scroll to zoom',width/2,height-16,11,'#205860',750,'center')}
     if(menu){const items=[['rules','Rulebook'],['legend','Island legend'],['log','Match log'],['sound',state.muted?'Sound: off':'Sound: on'],['resetCam','Reset camera'],['settings','New match']];items.forEach(([id,label],i)=>button(id,label,width-margin-148,margin+45+i*38,148,33))}
-    keys=buttons.map(b=>b.id).concat(pick.map(m=>m.userData.key));
+    keys=buttons.map(b=>b.id).concat(pick.map(m=>m.userData.key)); texture.needsUpdate=true;
   }
   const dieGroups=[new T.Group(),new T.Group()];dieGroups.forEach(d=>scene.add(d));
   const pipPositions=[[4],[0,8],[0,4,8],[0,2,6,8],[0,2,4,6,8],[0,2,3,5,6,8]];
@@ -140,14 +128,7 @@ export function createIsland(tiles, vertices, edges, activate) {
     }
   });
   function frameCam(){const a=width/height,mobile=width<670;const span=Math.max(mobile?13:11.8,(mobile?14.8:17.5)/a)/zoom;cam.left=-span*a/2;cam.right=span*a/2;cam.top=span/2;cam.bottom=-span/2;cam.near=.1;cam.far=180;cam.position.set(Math.sin(angle)*Math.cos(pitch)*38,Math.sin(pitch)*38,Math.cos(angle)*Math.cos(pitch)*38);cam.lookAt(0,0,0);cam.updateProjectionMatrix();cam.updateMatrixWorld();const shift=mobile?-.025:.02;cam.setViewOffset(width,height,0,height*shift,width,height)}
-  function resize(){
-    const w=host.clientWidth,h=host.clientHeight,ratio=Math.min(devicePixelRatio,2);
-    if(!w||!h)return;
-    if(width===w&&height===h&&hudCanvas.width===Math.round(w*ratio)&&hudCanvas.height===Math.round(h*ratio))return;
-    width=w;height=h;renderer.setSize(w,h,false);
-    hudCanvas.width=Math.round(w*ratio);hudCanvas.height=Math.round(h*ratio);
-    frameCam();paint();
-  }
+  function resize(){width=host.clientWidth;height=host.clientHeight;renderer.setSize(width,height,false);const ratio=Math.min(devicePixelRatio,2);hudCanvas.width=Math.round(width*ratio);hudCanvas.height=Math.round(height*ratio);frameCam();paint()}
   const selectionGeometries=new Map();
   function hitDisk(x,z,key,r,tile=false){
     const sides=tile?6:16;
@@ -173,24 +154,34 @@ export function createIsland(tiles, vertices, edges, activate) {
     for(const [id,[p,n]] of Object.entries(s.owns)){
       const {x,z}=vs[id],city=n===2;
       const slug=city?(p?'coral-city':'azure-city'):(p?'cottage':'azure-cottage');
-      placeAsset(pieces,slug,[x,.04,z],city?[.71,.92,.63]:[.55,.68,.52],.16);
+      const shell=placeAsset(pieces,slug,[x,.04,z],city?[.71,.92,.63]:[.55,.68,.52],.16);shell.userData.vertex=+id;
     }
     const rp=ts[s.robber];
     placeAsset(pieces,'robber',[rp.x+.52,.07,rp.z+.48],[.40,.83,.36],.22);
-    if(s.mode==='raid'||s.moving){s.locations.forEach(i=>hitDisk(ts[i].x,ts[i].z,'tile:'+i,1.43,true))}
+    if(s.mode==='visit'||s.mode==='raid'||s.moving){s.locations.forEach(i=>hitDisk(ts[i].x,ts[i].z,'tile:'+i,1.43,true))}
     else if(s.mode){s.locations.forEach(id=>{let v=vs[id];if(s.mode==='Road'){const [a,b]=edges[id].map(i=>vs[i]);v={x:(a.x+b.x)/2,z:(a.z+b.z)/2}}hitDisk(v.x,v.z,'place:'+id,.25)})}
     const stamp=s.turn+':'+s.rolled;if(s.rolled&&stamp!==rollingStamp){rollTime=1.45;dieGroups.forEach(d=>d.visible=true)}rollingStamp=stamp;paint();
   }
   function click(id){if(id==='menu'){menu=!menu;paint();return}if(id==='resetCam'){targetYaw=-.18;pitch=.81;zoom=1;menu=false;frameCam();paint();return}menu=false;paint();activate(id)}
   function hudAt(x,y){return buttons.findLast(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h)?.id}
   function at(x,y){const hud=hudAt(x,y);if(hud)return hud;pointer.set(2*x/width-1,1-2*y/height);ray.setFromCamera(pointer,cam);return ray.intersectObjects(pick,false)[0]?.object.userData.key}
-  canvas.addEventListener('pointerdown',e=>{canvas.focus();pressed={x:e.clientX,y:e.clientY,ax:e.clientX,ay:e.clientY,ui:hudAt(e.clientX,e.clientY)};drag=false;canvas.setPointerCapture(e.pointerId)});
-  canvas.addEventListener('pointermove',e=>{if(pressed&&!pressed.ui){if(Math.hypot(e.clientX-pressed.ax,e.clientY-pressed.ay)>5)drag=true;if(drag){targetYaw-=(e.clientX-pressed.x)*.008;pitch=T.MathUtils.clamp(pitch+(e.clientY-pressed.y)*.003,.55,1.25);pressed.x=e.clientX;pressed.y=e.clientY;frameCam()}}const id=at(e.clientX,e.clientY)||'';if(id!==hover){hover=id;paint()}canvas.style.cursor=id?'pointer':drag?'grabbing':'grab'});
-  canvas.addEventListener('pointerup',e=>{if(pressed&&!drag){const id=at(e.clientX,e.clientY);if(id)click(id)}pressed=null;drag=false});canvas.addEventListener('pointercancel',()=>pressed=null);
-  canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=T.MathUtils.clamp(zoom*Math.exp(-e.deltaY*.001),.74,1.65);frameCam()},{passive:false});
+  canvas.addEventListener('pointerdown',e=>{if(walking)return;canvas.focus();pressed={x:e.clientX,y:e.clientY,ax:e.clientX,ay:e.clientY,ui:hudAt(e.clientX,e.clientY)};drag=false;canvas.setPointerCapture(e.pointerId)});
+  canvas.addEventListener('pointermove',e=>{if(walking)return;if(pressed&&!pressed.ui){if(Math.hypot(e.clientX-pressed.ax,e.clientY-pressed.ay)>5)drag=true;if(drag){targetYaw-=(e.clientX-pressed.x)*.008;pitch=T.MathUtils.clamp(pitch+(e.clientY-pressed.y)*.003,.55,1.25);pressed.x=e.clientX;pressed.y=e.clientY;frameCam()}}const id=at(e.clientX,e.clientY)||'';if(id!==hover){hover=id;paint()}canvas.style.cursor=id?'pointer':drag?'grabbing':'grab'});
+  canvas.addEventListener('pointerup',e=>{if(walking)return;if(pressed&&!drag){const id=at(e.clientX,e.clientY);if(id)click(id)}pressed=null;drag=false});canvas.addEventListener('pointercancel',()=>pressed=null);
+  canvas.addEventListener('wheel',e=>{if(walking)return;e.preventDefault();zoom=T.MathUtils.clamp(zoom*Math.exp(-e.deltaY*.001),.74,1.65);frameCam()},{passive:false});
   canvas.tabIndex=0;canvas.setAttribute('aria-label','3D Catan island. Drag to orbit, scroll to zoom. Use the adjacent game controls for keyboard play.');
-  function animate(time){requestAnimationFrame(animate);if(document.hidden||!document.getElementById('arena').hidden)return;const dt=Math.min((time-last)/1000,.075);last=time;angle+=(targetYaw-angle)*Math.min(1,dt*12);frameCam();boats.forEach((q,i)=>{q.position.y=-.48+Math.sin(time*.0018+i)*.035;q.rotation.z=Math.sin(time*.0012+i)*.035});if(!imagesReady&&resourceSlugs.every(slug=>assetImage(slug))){imagesReady=true;paint()}highlight.forEach(m=>m.opacity=.24+.12*Math.sin(time*.003));
+  function animate(time){requestAnimationFrame(animate);if(document.hidden||walking||!document.getElementById('arena').hidden)return;const dt=Math.min((time-last)/1000,.075);last=time;angle+=(targetYaw-angle)*Math.min(1,dt*12);frameCam();boats.forEach((q,i)=>{q.position.y=-.48+Math.sin(time*.0018+i)*.035;q.rotation.z=Math.sin(time*.0012+i)*.035});if(!imagesReady&&resourceSlugs.every(slug=>assetImage(slug))){imagesReady=true;paint()}highlight.forEach(m=>m.opacity=.24+.12*Math.sin(time*.003));
     if(rollTime>0){rollTime=Math.max(0,rollTime-dt);dieGroups.forEach((q,i)=>{let t=1.45-rollTime,k=Math.min(t/.85,1),spin=1-k;const rot=[[0,0],[ -Math.PI/2,0],[0,Math.PI/2],[0,-Math.PI/2],[Math.PI/2,0],[Math.PI,0]][diceValues[i]-1];q.position.set(i*.96-.48,.45+Math.abs(Math.sin(k*Math.PI*2.1))*spin*2,5.5);q.rotation.set(rot[0]+spin*7,spin*4+.16*i,rot[1]+spin*8);if(!rollTime)q.visible=false})}
-    renderer.render(scene,cam)}
-  scene.background=new T.Color(0x54c8d2);resize();new ResizeObserver(resize).observe(host);addEventListener('resize',resize);requestAnimationFrame(animate);return {update}
+    renderer.clear();renderer.render(scene,cam);renderer.clearDepth();renderer.render(hudScene,hudCam)}
+  scene.background=new T.Color(0x54c8d2);resize();addEventListener('resize',resize);requestAnimationFrame(animate);return {update,takeCamera(id){
+    const scale=16, origin=ts[id], backdrop=scene.background, fog=scene.fog;
+    walking=true;const boardWorld=new T.Group();
+    const objects=scene.children.filter(o=>!o.isLight);objects.forEach(o=>boardWorld.add(o));scene.add(boardWorld);
+    boardWorld.scale.setScalar(scale);boardWorld.position.set(-origin.x*scale,0,-origin.z*scale);boardWorld.updateMatrixWorld(true);
+    markers.visible=false;root.traverse(m=>{if(m.userData.boardOnly)m.visible=false});
+    const fpsLight=sun.shadow.camera;Object.assign(fpsLight,{left:-33,right:33,top:33,bottom:-33,far:135});fpsLight.updateProjectionMatrix();sun.position.set(-26,60,-30);sun.shadow.bias=-.0004;
+    return {scene,renderer,canvas,overview:cam.position.clone().sub(new T.Vector3(origin.x,0,origin.z)).multiplyScalar(2.2),restore(){
+      objects.forEach(o=>scene.add(o));scene.remove(boardWorld);markers.visible=true;root.traverse(m=>{if(m.userData.boardOnly)m.visible=true});scene.background=backdrop;scene.fog=fog;sun.position.set(-7,14,-5);Object.assign(fpsLight,{left:-11,right:11,top:11,bottom:-11,far:40});fpsLight.updateProjectionMatrix();sun.shadow.bias=-.00025;host.append(canvas);renderer.autoClear=false;walking=false;resize()
+    }}
+  },environment:async id=>{const env=environments[id];await env.ready;return {env,shell:vertex=>pieces.children.find(m=>m.userData.vertex===vertex),center:ts[id],verts:tiles[id].vs.map(i=>({...vs[i],id:i})),roads:edges.flatMap(([a,b],i)=>tiles[id].vs.includes(a)&&tiles[id].vs.includes(b)&&state.roads[i]!=null?[{a:vs[a],b:vs[b],p:state.roads[i]}]:[]),owns:state.owns}}}
 }
