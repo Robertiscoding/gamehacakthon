@@ -129,7 +129,8 @@ export function createIsland(tiles, vertices, edges, activate) {
     if(!selectionGeometries.has(sides))selectionGeometries.set(sides,new T.CylinderGeometry(1,1,1,sides));
     const material=new T.MeshBasicMaterial({color:tile?0xffdb58:0xffff98,transparent:true,opacity:tile?.31:.88,depthWrite:false});
     const m=new T.Mesh(selectionGeometries.get(sides),material);
-    m.scale.set(r,.06,r);m.position.set(x,tile?.045:.70,z);m.userData.key=key;markers.add(m);
+    // The illustrated tile surface sits at y=.008; placement discs rest on it.
+    m.scale.set(r,tile?.06:.008,r);m.position.set(x,tile?.045:.012,z);m.userData.key=key;markers.add(m);
     if(tile){
       highlight.push(material);
       const ring=new T.Mesh(new T.RingGeometry(r*.93,r,6,1,Math.PI/2),new T.MeshBasicMaterial({color:0xffe46d,side:T.DoubleSide}));
