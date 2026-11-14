@@ -36,6 +36,7 @@ function startDownloads() {
         if (node.isMesh) {
           node.castShadow = true;
           node.receiveShadow = true;
+          for(const material of [].concat(node.material)){if(material.map)material.map.anisotropy=4}
         }
       });
       failed.delete(slug);

@@ -46,7 +46,7 @@ export function createIsland(tiles, vertices, edges, activate) {
     if(adjacent.length!==1)return;
     const u=vs[a],v=vs[b],x=(u.x+v.x)/2,z=(u.z+v.z)/2;
     const tile=ts[adjacent[0]],dx=(x-tile.x)/1.299,dz=(z-tile.z)/1.299;
-    placeAsset(root,'surf',[x+dx*.29,-.55,z+dz*.29],[1.3,.065,.3],-Math.atan2(v.z-u.z,v.x-u.x));
+    for(let j=0;j<2;j++){const foam=new T.Mesh(new T.BoxGeometry(1.38-j*.16,.018,.07),new T.MeshBasicMaterial({color:j?0x89e3d9:0xc1f9e4}));foam.position.set(x+dx*(.14+j*.18),-.50,z+dz*(.14+j*.18));foam.rotation.y=-Math.atan2(v.z-u.z,v.x-u.x);root.add(foam)}
     if(i%4===0)placeAsset(root,'coast-rock',[x+dx*.57,-.55,z+dz*.57],[.52,.27,.37],i);
   });
   for(const [slug,x,z,size,yaw] of [
@@ -60,15 +60,9 @@ export function createIsland(tiles, vertices, edges, activate) {
   placeAsset(root,'pine-islet',[-7.8,-.55,7],[1.38,.97,1.1],-.42);
   placeAsset(root,'pine-islet',[5.8,-.55,-8],[1.62,1.05,1.22],1.8);
   placeAsset(root,'lighthouse',[-7.7,-.52,-1.6],[.86,1.75,.78],.36);
-  const ocean=placeAsset(root,'sea',[0,-.76,0],[74,.19,74]);
-  assetReady(ocean).then(()=>ocean.traverse(o=>{
-    if(!o.isMesh)return;
-    o.castShadow=false;
-    o.material=o.material.clone();
-    o.material.color.setHex(0x70bde1);
-  })).catch(()=>{});
-  scene.add(new T.HemisphereLight(0xfffcf0,0xafc6bf,1.8));
-  const sun=new T.DirectionalLight(0xffebc6,2.2);
+  const water=new T.Mesh(new T.PlaneGeometry(400,400),new T.ShaderMaterial({vertexShader:'varying vec2 uvWorld;void main(){uvWorld=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',fragmentShader:'varying vec2 uvWorld;void main(){float d=length(uvWorld);float ripple=sin(uvWorld.y*23.+sin(uvWorld.x*5.))*sin(uvWorld.x*2.5+uvWorld.y);vec3 c=mix(vec3(.47,.76,.76),vec3(.32,.58,.67),smoothstep(5.,15.,d));c+=.055*smoothstep(.87,1.,ripple);gl_FragColor=vec4(c,1.);}' }));water.rotation.x=-Math.PI/2;water.position.y=-.51;root.add(water);
+  scene.add(new T.HemisphereLight(0xfff8ed,0xa4a6dc,2.12));
+  const sun=new T.DirectionalLight(0xfff0d5,1.77);
   sun.position.set(-7,14,-5);sun.castShadow=true;
   Object.assign(sun.shadow.camera,{left:-11,right:11,top:11,bottom:-11,near:.5,far:40});
   sun.shadow.mapSize.set(2048,2048);sun.shadow.normalBias=.018;sun.shadow.bias=-.00025;
@@ -100,7 +94,7 @@ export function createIsland(tiles, vertices, edges, activate) {
     panel(tx,ty,tw,82,15,'#fff4d4','#ffffffaf');txt('TURN '+String(state.turn).padStart(2,'0'),tx+13,ty+15,10,'#62736b',900);txt(state.title,tx+13,ty+41,mobile?18:21,'#21444a',950);
     if(!mobile)txt('Dice  '+diceValues[0]+' + '+diceValues[1],tx+14,ty+65,12,'#52665f',750)
     const bw=mobile?128:136;button('action',state.action,tx+tw-bw-10,ty+14,bw,48,'#f3b74d','#263f3d',15,state.disabled);
-    const cmds=[['visit','Visit'],['build','Build'],['trade','Trade'],['raid',state.mode==='raid'?'Cancel raid':'Raid']];let cw=mobile?Math.min(61,(width-42)/4):68,ay=mobile?y-43:y-46;
+    const cmds=[['visit','Roam'],['build','Build'],['trade','Trade'],['raid','Skirmish']];let cw=mobile?Math.min(61,(width-42)/4):68,ay=mobile?y-43:y-46;
     cmds.forEach(([id,label],i)=>button(id,label,margin+i*(cw+6),ay,cw,34,id==='raid'?'#995137':'#234c54','#fff6dc',13,(id==='raid'&&state.raidDisabled)||(id==='visit'&&!!state.p)));
     const msg=state.hint;if(state.mode||state.moving||state.rolled){let my=mobile?ay-25:height-162;let max=mobile?width-20:Math.min(480,width*.48);let x=mobile?width/2:width/2+40;ctx.font=f(12);let sw=Math.min(max,ctx.measureText(msg).width+24);panel(x-sw/2,my-13,sw,26,12,'#16434be8');txt(msg,x,my,12,'#fff7d7',750,'center')}
     if(!mobile){txt('Drag to orbit   ·   Scroll to zoom',width/2,height-16,11,'#205860',750,'center')}
@@ -149,7 +143,7 @@ export function createIsland(tiles, vertices, edges, activate) {
     markers.clear();highlight.length=0;pick=[];
     for(const [id,p] of Object.entries(s.roads)){
       const [u,v]=edges[id].map(i=>vs[i]);
-      placeAsset(pieces,p?'coral-road':'azure-road',[(u.x+v.x)/2,.055,(u.z+v.z)/2],[1.17,.17,.21],-Math.atan2(v.z-u.z,v.x-u.x));
+      placeAsset(pieces,p?'coral-road':'azure-road',[(u.x+v.x)/2,.018,(u.z+v.z)/2],[1.44,.043,.25],-Math.atan2(v.z-u.z,v.x-u.x));
     }
     for(const [id,[p,n]] of Object.entries(s.owns)){
       const {x,z}=vs[id],city=n===2;
@@ -183,5 +177,8 @@ export function createIsland(tiles, vertices, edges, activate) {
     return {scene,renderer,canvas,overview:cam.position.clone().sub(new T.Vector3(origin.x,0,origin.z)).multiplyScalar(2.2),restore(){
       objects.forEach(o=>scene.add(o));scene.remove(boardWorld);markers.visible=true;root.traverse(m=>{if(m.userData.boardOnly)m.visible=true});scene.background=backdrop;scene.fog=fog;sun.position.set(-7,14,-5);Object.assign(fpsLight,{left:-11,right:11,top:11,bottom:-11,far:40});fpsLight.updateProjectionMatrix();sun.shadow.bias=-.00025;host.append(canvas);renderer.autoClear=false;walking=false;resize()
     }}
-  },environment:async id=>{const env=environments[id];await env.ready;return {env,shell:vertex=>pieces.children.find(m=>m.userData.vertex===vertex),center:ts[id],verts:tiles[id].vs.map(i=>({...vs[i],id:i})),roads:edges.flatMap(([a,b],i)=>tiles[id].vs.includes(a)&&tiles[id].vs.includes(b)&&state.roads[i]!=null?[{a:vs[a],b:vs[b],p:state.roads[i]}]:[]),owns:state.owns}}}
+  },environment:async id=>{
+    await Promise.all(environments.map(e=>e.ready));
+    return {environments,tiles,centers:ts,shell:vertex=>pieces.children.find(m=>m.userData.vertex===vertex),center:ts[id],verts:vs.map((v,i)=>({...v,id:i})),roads:edges.flatMap(([a,b],i)=>state.roads[i]!=null?[{a:vs[a],b:vs[b],p:state.roads[i]}]:[]),owns:state.owns}
+  }}
 }
