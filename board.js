@@ -21,13 +21,14 @@ export function createIsland(tiles, vertices, edges, activate) {
     if(tokenTextures.has(n))return tokenTextures.get(n);
     const c=document.createElement('canvas');c.width=c.height=128;
     const ctx=c.getContext('2d');
+    ctx.beginPath();ctx.arc(64,64,61,0,Math.PI*2);ctx.fillStyle='#fff1bd';ctx.fill();ctx.strokeStyle='#9f763c';ctx.lineWidth=4;ctx.stroke();
     ctx.fillStyle=n===8||n===6?'#a72c20':'#23372c';
     ctx.textAlign='center';ctx.font='900 80px system-ui';
     ctx.fillText(n,64,83);
     const dots=6-Math.abs(7-n);
     for(let k=0;k<dots;k++){ctx.beginPath();ctx.arc(64+(k-(dots-1)/2)*12,100,3.6,0,7);ctx.fill()}
     const map=new T.CanvasTexture(c);map.colorSpace=T.SRGBColorSpace;
-    const mat=new T.MeshBasicMaterial({map,transparent:true,depthWrite:false});
+    const mat=new T.SpriteMaterial({map,transparent:true,depthTest:false,depthWrite:false});
     tokenTextures.set(n,mat);
     return mat;
   }
@@ -35,11 +36,9 @@ export function createIsland(tiles, vertices, edges, activate) {
   tiles.forEach(({t,n},i)=>{
     const {x,z}=ts[i];
     if(!n)return;
-    const token=placeAsset(root,'token',[x,.025,z+1.14],[.70,.70,.105]);token.rotation.x=-Math.PI/2;
-    const label=new T.Mesh(numberPlane,numberLabel(n));
-    label.rotation.x=-Math.PI/2;
-    label.position.set(x,.136,z+.79);
-    root.add(label);label.userData.boardOnly=true;token.userData.boardOnly=true;environments[i].ready.then(()=>{const y=environments[i].surface(0,.79);token.position.y=y+.055;label.position.y=y+.116}).catch(()=>{});
+    const label=new T.Sprite(numberLabel(n));
+    label.scale.set(.63,.63,1);label.position.set(x,.03,z+.79);
+    label.renderOrder=20;label.userData.boardOnly=true;root.add(label);
   });
   edges.forEach(([a,b],i)=>{
     const adjacent=vertices[a].tiles.filter(t=>vertices[b].tiles.includes(t));
@@ -123,20 +122,23 @@ export function createIsland(tiles, vertices, edges, activate) {
   });
   function frameCam(){const a=width/height,mobile=width<670;const span=Math.max(mobile?13:11.8,(mobile?14.8:17.5)/a)/zoom;cam.left=-span*a/2;cam.right=span*a/2;cam.top=span/2;cam.bottom=-span/2;cam.near=.1;cam.far=180;cam.position.set(Math.sin(angle)*Math.cos(pitch)*38,Math.sin(pitch)*38,Math.cos(angle)*Math.cos(pitch)*38);cam.lookAt(0,0,0);cam.updateProjectionMatrix();cam.updateMatrixWorld();const shift=mobile?-.025:.02;cam.setViewOffset(width,height,0,height*shift,width,height)}
   function resize(){width=host.clientWidth;height=host.clientHeight;renderer.setSize(width,height,false);const ratio=Math.min(devicePixelRatio,2);hudCanvas.width=Math.round(width*ratio);hudCanvas.height=Math.round(height*ratio);frameCam();paint()}
-  const selectionGeometries=new Map();
+  const dotCanvas=document.createElement('canvas');dotCanvas.width=dotCanvas.height=96;
+  const dotCtx=dotCanvas.getContext('2d');dotCtx.beginPath();dotCtx.arc(48,48,44,0,2*Math.PI);
+  dotCtx.fillStyle='#fff39a';dotCtx.fill();dotCtx.lineWidth=5;dotCtx.strokeStyle='#88602c';dotCtx.stroke();
+  const dotMap=new T.CanvasTexture(dotCanvas);dotMap.colorSpace=T.SRGBColorSpace;
+  const tileHitGeometry=new T.CylinderGeometry(1,1,1,6);
   function hitDisk(x,z,key,r,tile=false){
-    const sides=tile?6:16;
-    if(!selectionGeometries.has(sides))selectionGeometries.set(sides,new T.CylinderGeometry(1,1,1,sides));
-    const material=new T.MeshBasicMaterial({color:tile?0xffdb58:0xffff98,transparent:true,opacity:tile?.31:.88,depthWrite:false});
-    const m=new T.Mesh(selectionGeometries.get(sides),material);
-    // The illustrated tile surface sits at y=.008; placement discs rest on it.
-    m.scale.set(r,tile?.06:.008,r);m.position.set(x,tile?.045:.012,z);m.userData.key=key;markers.add(m);
+    let marker;
     if(tile){
-      highlight.push(material);
+      const material=new T.MeshBasicMaterial({color:0xffdb58,transparent:true,opacity:.31,depthWrite:false});
+      marker=new T.Mesh(tileHitGeometry,material);marker.scale.set(r,.06,r);marker.position.set(x,.045,z);highlight.push(material);
       const ring=new T.Mesh(new T.RingGeometry(r*.93,r,6,1,Math.PI/2),new T.MeshBasicMaterial({color:0xffe46d,side:T.DoubleSide}));
       ring.rotation.x=-Math.PI/2;ring.position.set(x,.09,z);markers.add(ring);
+    }else{
+      marker=new T.Sprite(new T.SpriteMaterial({map:dotMap,depthTest:false,depthWrite:false}));
+      marker.scale.set(2*r,2*r,1);marker.position.set(x,.012,z);marker.renderOrder=19;
     }
-    pick.push(m);
+    marker.userData.key=key;markers.add(marker);pick.push(marker);
   }
   let portsDrawn=false;
   function showPorts(ports){portsDrawn=true;for(const port of ports){const [u,v]=port.ends.map(i=>vs[i]),x=(u.x+v.x)/2,z=(u.z+v.z)/2,length=Math.hypot(x,z),image=document.createElement('canvas');image.width=256;image.height=80;const c=image.getContext('2d');c.fillStyle='#324760';c.fillRect(0,0,256,80);c.fillStyle='#fff1bc';c.textAlign='center';c.font='bold 41px system-ui';c.fillText(port.type<0?'3:1':['Wood','Brick','Wool','Grain','Ore'][port.type]+' 2:1',128,54);const sprite=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(image),depthWrite:false}));sprite.position.set(x+x/length*.55,.12,z+z/length*.55);sprite.scale.set(.89,.28,1);sprite.userData.boardOnly=true;root.add(sprite)}}
