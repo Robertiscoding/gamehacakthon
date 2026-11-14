@@ -1,10 +1,11 @@
 import {tiles,verts,edges} from './map.mjs';
 const $=id=>document.getElementById(id),names=['Lumber','Brick','Wool','Grain','Ore'],dialog=$('dialog'),body=$('dialogbody');
+const practice=new URLSearchParams(location.search).has('practice');
 const key='frontier-seat';let token=location.hash.slice(1)||localStorage.getItem(key);
 if(location.hash){localStorage.setItem(key,token);history.replaceState(null,'',location.pathname)}
 let s,island,mode='',inRound=false,walking=false,busy=false,lastView='',polling=false;
 function show(title,html){$('dialogtitle').textContent=title;body.innerHTML=html;if(!dialog.open)dialog.showModal()}
-async function api(route,data){const r=await fetch('/api/'+route,{method:data?'POST':'GET',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined,cache:'no-store'});const v=await r.json();if(!r.ok)throw Error(v.error||'Connection failed');return v}
+async function api(route,data){const r=await fetch('/api/'+route,{method:data?'POST':'GET',headers:{'X-Practice':practice?'1':'0',Authorization:'Bearer '+token,'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined,cache:'no-store'});const v=await r.json();if(!r.ok)throw Error(v.error||'Connection failed');return v}
 async function action(action,fields={}){if(busy)return;busy=true;try{const fresh=await api('action',{action,...fields,revision:s.revision});dialog.close();mode='';apply(fresh)}catch(e){show('Move unavailable','<p></p>');body.firstChild.textContent=e.message}finally{busy=false}}
 function button(id,label){return '<button class="buildchoice" data-command="'+id+'">'+label+'</button>'}
 const options=names.map((n,i)=>'<option value="'+i+'">'+n+'</option>').join('');
@@ -19,7 +20,7 @@ function onAction(id){
  if(id.startsWith('place:'))return action('build',{id:+id.slice(6),type:buildMode()});
  if(id.startsWith('tile:'))return action('robber',{id:+id.slice(5)});
  if(id==='visit'){if(s.phase!=='main'||s.p!==s.seat)return;walking=true;window.startArena('pasture',false,()=>{walking=false;draw()},island,9,true,()=>false).catch(()=>{walking=false;draw()});return}
- if(id==='action'){
+ if(id==='action'){if(s.phase==='waiting'&&s.seat===0){window.open('/?practice','_blank');return}
  if(s.phase==='discard'&&s.owed[s.seat])return show('Discard '+s.owed[s.seat]+' cards',vector('Your selection','discard')+button('discard','Discard cards'));
  if(s.offer&&s.offer.from!==s.seat)return show('Trade offer','<p>You receive '+describe(s.offer.give)+'. Give '+describe(s.offer.want)+'.</p>'+button('accept','Accept')+button('reject','Decline'));
  if(s.p!==s.seat)return;if(s.phase==='roll')return action('roll');if(s.phase==='main'&&mode){mode='';draw();return}if(s.phase==='main')return action('end');return}
@@ -36,10 +37,10 @@ body.onclick=e=>{const c=e.target.closest('[data-command]')?.dataset.command;if(
 };
 function buildMode(){if(s.p!==s.seat)return '';return ({setupRoad:'Road',setupSettlement:'Settlement',freeRoad:'Road'})[s.phase]||mode}
 function draw(){if(!s||!island||inRound||walking)return;const own=s.p===s.seat,phase=s.phase,build=buildMode(),robber=own&&phase==='robber',offer=s.offer&&s.offer.from!==s.seat,discard=phase==='discard'&&s.owed[s.seat]>0;
- const act=discard?'Discard':offer?'Trade offer':phase==='waiting'?'Waiting…':phase==='won'?'Game over':!own?'Waiting…':phase==='roll'?'Roll dice':phase==='main'?mode?'Cancel':'End turn':robber?'Move robber':'Place '+build;
- const hint=phase==='waiting'?'Waiting for your friend to open their seat link.':phase==='won'?'First to 10 victory points.':discard?'Choose cards to discard.':offer?'Your friend sent a trade offer.':build?'Choose a glowing '+(build==='Road'?'edge':'intersection')+' for your '+build.toLowerCase()+'.':robber?'Choose a different tile.':!own?'Your friend is taking their turn.':phase==='roll'?'Roll to produce resources.':'Trade, build or end your turn.';
+ const act=discard?'Discard':offer?'Trade offer':phase==='waiting'&&s.seat===0?'Practice vs bot':phase==='waiting'?'Waiting…':phase==='won'?'Game over':!own?'Waiting…':phase==='roll'?'Roll dice':phase==='main'?mode?'Cancel':'End turn':robber?'Move robber':'Place '+build;
+ const hint=phase==='waiting'?'Waiting for your friend to open their seat link.':phase==='won'?'First to 10 victory points.':discard?'Choose cards to discard.':offer?'Your friend sent a trade offer.':build?'Choose a glowing '+(build==='Road'?'edge':'intersection')+' for your '+build.toLowerCase()+'.':robber?'Choose a different tile.':!own?(practice?'The bot is taking its turn.':'Your friend is taking their turn.'):phase==='roll'?'Roll to produce resources.':'Trade, build or end your turn.';
  const locs=robber?tiles.flatMap((_,i)=>i!==s.robber?[i]:[]):build?s.legal[build]:[];
- island.update({...s,muted:true,mode:build,moving:robber,locations:locs,raidDisabled:false,title:phase==='waiting'?'Lobby':phase==='won'?(s.winner===s.seat?'You win!':'Friend wins'):own?'Your turn':'Friend’s turn',hint,action:act,disabled:!(discard||offer||own&&['main','roll'].includes(phase)),showHint:true});
+ island.update({...s,muted:true,mode:build,moving:robber,locations:locs,raidDisabled:false,title:phase==='waiting'?'Lobby':phase==='won'?(s.winner===s.seat?'You win!':'Friend wins'):own?'Your turn':practice?'Bot’s turn':'Friend’s turn',hint,action:act,disabled:!(phase==='waiting'&&s.seat===0||discard||offer||own&&['main','roll'].includes(phase)),showHint:true});
  const cmds=[['action',act],['build','Build'],['trade','Trade'],['raid','Development cards'],['visit','Roam'],['rules','Rules'],['log','Match log']];locs.forEach(i=>cmds.push([(robber?'tile:':'place:')+i,(robber?'Move robber':build)+' position '+(i+1)]));
  $('access').innerHTML='<b>'+hint+'</b>'+cmds.map(([id,t])=>'<button data-key="'+id+'">'+t+'</button>').join('');$('access').onclick=e=>onAction(e.target.dataset.key)
 }
