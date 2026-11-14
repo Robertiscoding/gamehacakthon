@@ -82,7 +82,7 @@ export function createIsland(tiles, vertices, edges, activate) {
     if(img)ctx.drawImage(img,x-15*s,y-15*s,30*s,30*s);
   }
   function paint(){if(!state)return;const mobile=width<670,margin=mobile?11:24;buttons=[];ctx.setTransform(hudCanvas.width/width,0,0,hudCanvas.height/height,0,0);ctx.clearRect(0,0,width,height);
-    const brandX=margin,brandY=mobile?25:32;txt('CATAN',brandX,brandY-3,mobile?23:28,'#143e49',1000);txt('FRONTIER DUEL',brandX,brandY+15,9,'#194a52',900);
+    const brandX=margin,brandY=mobile?25:32;txt('CATAN 2',brandX,brandY-3,mobile?23:28,'#143e49',1000);txt('FRONTIER DUEL',brandX,brandY+15,9,'#194a52',900);
     button('menu',menu?'×':'☰',width-margin-40,margin,40,36);
     const scoreW=mobile?136:155,sy=mobile?65:75;
     for(let p=0;p<2;p++){let x=mobile?(p?width-margin-scoreW:margin):margin,y=sy+(mobile?0:p*48);panel(x,y,scoreW,40,12,'#143f49ed','#d9ffef88');panel(x+7,y+6,29,28,8,p?'#e9764d':'#369fe4');txt(state.seat!=null?(p?'C':'B'):(p?'R':'Y'),x+21.5,y+20,17,'#fff6d7',1000,'center');txt(state.seat!=null?(p===state.seat?'You':'Friend'):(p?'Rival':'You'),x+44,y+20,14);txt(state.points[p]+' VP',x+scoreW-9,y+20,13,'#ffdc87',900,'right')}
