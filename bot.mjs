@@ -1,3 +1,4 @@
+import {hiddenAt} from './landmarks.mjs';
 import {act,legal,costs,rates,fightInput} from './match.mjs';
 import {tiles,verts} from './dist/map.mjs';
 export function bot(g,p=1){
@@ -10,7 +11,7 @@ export function bot(g,p=1){
  if(g.phase==='harvest'){const h=g.harvest,a=h.actors[p];if(!a)return;
  const distance=o=>Math.hypot(o.x-a.x,o.z-a.z);
  const d=h.drops.filter(o=>o.owner===null).sort((u,v)=>distance(u)-distance(v))[0];
- if(d)fightInput(g,p,{round:h.id,x:d.x-a.x,z:d.z-a.z,skill:h.actors[other]&&distance(h.actors[other])<6?'slash':'dash'});return}
+ if(d)fightInput(g,p,{round:h.id,x:d.x-a.x,z:d.z-a.z,skill:h.actors[other]&&!hiddenAt(h.actors[other].x,h.actors[other].z)&&distance(h.actors[other])<6?'slash':'dash'});return}
  if(g.phase==='discard'&&g.owed[p]){const cards=hand.map(()=>0);for(let i=0;i<g.owed[p];i++){const left=hand.map((n,j)=>n-cards[j]);cards[left.indexOf(Math.max(...left))]++}return move('discard',{cards})}
  if(g.offer?.from===other)return move('respond',{accept:g.offer.want.every((n,i)=>hand[i]>=n)&&g.offer.give.reduce((a,b)=>a+b)>=g.offer.want.reduce((a,b)=>a+b)});
  if(g.p!==p)return;

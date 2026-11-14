@@ -1,3 +1,4 @@
+import {hiddenAt} from './landmarks.mjs';
 import {bot} from './bot.mjs';
 import http from 'node:http';
 import {randomBytes} from 'node:crypto';
@@ -18,8 +19,8 @@ setInterval(()=>{const game=room.practice,now=Date.now();if(!game||now-practiceS
  if(game.phase==='harvest'){bot(game);step(game,.05);dirty=true}
  else if(now-lastDecision>700){lastDecision=now;const rev=game.revision;bot(game);if(game.revision!==rev)dirty=true}
 },50);
-function snapshot(p,g=room.game,seenTimes=seen){const {dev,deck,res,...state}=g;return {...state,ports,seat:p,res:res[p],counts:res.map(h=>h.reduce((a,b)=>a+b,0)),dev:dev[p],deckCount:deck.length,online:seenTimes.map(t=>Date.now()-t<6000),rates:rates(g,p),points:[0,1].map(j=>score(g,j,p===j||g.winner!=null)),legal:Object.fromEntries(['Settlement','City','Road'].map(t=>[t,legal(g,p,t)]))}}
-const types={'.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.html':'text/html','.webp':'image/webp','.glb':'model/gltf-binary','.png':'image/png'};
+function snapshot(p,g=room.game,seenTimes=seen){const {dev,deck,res,...state}=g;const harvest=g.harvest&&{...g.harvest,actors:g.harvest.actors.map((a,i)=>a&&i!==p&&hiddenAt(a.x,a.z)?null:a)};return {...state,harvest,ports,seat:p,res:res[p],counts:res.map(h=>h.reduce((a,b)=>a+b,0)),dev:dev[p],deckCount:deck.length,online:seenTimes.map(t=>Date.now()-t<6000),rates:rates(g,p),points:[0,1].map(j=>score(g,j,p===j||g.winner!=null)),legal:Object.fromEntries(['Settlement','City','Road'].map(t=>[t,legal(g,p,t)]))}}
+const types={'.mp3':'audio/mpeg','.js':'text/javascript','.mjs':'text/javascript','.css':'text/css','.html':'text/html','.webp':'image/webp','.glb':'model/gltf-binary','.png':'image/png'};
 const server=http.createServer(async(req,res)=>{function json(status,obj){res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(obj))}
 try{const url=new URL(req.url,'http://localhost');
  if(url.pathname.startsWith('/api/')){if(url.pathname==='/api/local-seat'&&req.method==='POST'&&/^127\.0\.0\.1:\d+$/.test(req.headers.host||'')&&!req.headers['x-forwarded-for']&&!req.headers['cf-connecting-ip']&&!req.headers['forwarded']&&req.headers.origin==='http://'+req.headers.host)return json(200,{token:room.tokens[0]});
