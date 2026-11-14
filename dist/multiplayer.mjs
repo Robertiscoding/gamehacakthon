@@ -1,8 +1,9 @@
 import {tiles,verts,edges} from './map.mjs';
 const $=id=>document.getElementById(id),names=['Lumber','Brick','Wool','Grain','Ore'],dialog=$('dialog'),body=$('dialogbody');
-const practice=new URLSearchParams(location.search).has('practice');
-const key='frontier-seat';let token=location.hash.slice(1)||localStorage.getItem(key);
-if(location.hash){localStorage.setItem(key,token);history.replaceState(null,'',location.pathname)}
+const demo=new URLSearchParams(location.search).has('demo');
+const practice=demo||new URLSearchParams(location.search).has('practice');
+const key=demo?'frontier-demo':'frontier-seat';let token=demo?localStorage.getItem(key):location.hash.slice(1)||localStorage.getItem(key);
+if(location.hash&&!demo){localStorage.setItem(key,token);history.replaceState(null,'',location.pathname)}
 let s,island,mode='',inRound=false,walking=false,busy=false,lastView='',polling=false;
 function show(title,html){$('dialogtitle').textContent=title;body.innerHTML=html;if(!dialog.open)dialog.showModal()}
 async function api(route,data){const r=await fetch('/api/'+route,{method:data?'POST':'GET',headers:{'X-Practice':practice?'1':'0',Authorization:'Bearer '+token,'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined,cache:'no-store'});const v=await r.json();if(!r.ok)throw Error(v.error||'Connection failed');return v}
@@ -48,5 +49,5 @@ function apply(next){if(s&&next.revision<s.revision)return;const previous=s;s=ne
  if(s.phase==='harvest'&&!inRound&&!walking){inRound=true;dialog.close();window.liveHarvest(island,()=>s,b=>api('input',b)).finally(()=>{inRound=false;mode='';draw()})}
  const v=[s.revision,s.phase,...s.online].join();if(v!==lastView){lastView=v;if(previous?.phase!==s.phase)mode='';draw()}}
 async function poll(){if(polling)return;polling=true;try{apply(await api('state'));$('connection').hidden=true}catch{$('connection').hidden=false}finally{polling=false;setTimeout(poll,s?.phase==='harvest'?90:420)}}
-async function start(){if(!token&&location.hostname==='127.0.0.1'){try{const r=await fetch('/api/local-seat',{method:'POST'});if(r.ok){token=(await r.json()).token;localStorage.setItem(key,token)}}catch{}}if(!token)return show('Join a match','<p>Open the personal seat link from the host.</p>');try{apply(await api('join',{}));poll()}catch(e){show('Seat unavailable','<p>Open your personal seat link to join.</p>')}}
+async function start(){if(demo){try{const session=await api('demo',{});token=session.token;localStorage.setItem(key,token)}catch(e){show('Practice unavailable','<p></p>');body.firstChild.textContent=e.message;return}}if(!token&&location.hostname==='127.0.0.1'){try{const r=await fetch('/api/local-seat',{method:'POST'});if(r.ok){token=(await r.json()).token;localStorage.setItem(key,token)}}catch{}}if(!token)return show('Join a match','<p>Open the personal seat link from the host.</p>');try{apply(await api('join',{}));poll()}catch(e){show('Seat unavailable','<p>Open your personal seat link to join.</p>')}}
 start();
