@@ -1,0 +1,13 @@
+{
+  "name": "catan-frontier-duel",
+  "private": true,
+  "scripts": {
+    "build": "esbuild entry.js --bundle --minify --outfile=dist/frontier.bundle.js"
+  },
+  "dependencies": {
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

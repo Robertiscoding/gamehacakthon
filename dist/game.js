@@ -1,12 +1,5 @@
 const $=id=>document.getElementById(id), names=['Lumber','Brick','Wool','Grain','Ore'], tints=['#dde6cf','#eedac7','#e8ead9','#f4e7b9','#e0e1d9'];
-const ink='#484b36';
-const icons=[
-'<g fill="#946a40"><path d="m7 28 27-17 10 6-27 18z"/><path d="m18 31 28-17 10 6-28 18z"/><path d="m16 20 26-15 10 6-26 17z"/></g><g fill="#e1b678"><ellipse cx="13" cy="31" rx="7" ry="6"/><ellipse cx="24" cy="34" rx="7" ry="6"/><ellipse cx="22" cy="24" rx="7" ry="6"/></g><path d="m20 23 4 2-2 2m-12 3 4 2m8 1 4 2m5-14 15-9m-16 20 17-10" fill="none"/>',
-'<g fill="#a45e43"><path d="m5 26 18-9 16 7v9l-18 9-16-8z"/><path d="m25 25 17-8 15 7v8l-17 9-15-8z"/><path d="m15 15 18-9 16 7v10l-18 9-16-8z"/></g><g fill="#d3976f"><path d="m5 26 18-9 16 7-18 9z"/><path d="m25 25 17-8 15 7-17 9z"/><path d="m15 15 18-9 16 7-18 9z"/></g><path d="M31 22v9m9 1v8m-19-7v8" fill="none"/>',
-'<path d="m16 30 1 9h4l1-9m12 0 1 9h4l2-11" fill="#777966"/><path d="M9 23q-4-9 6-11 3-9 12-5 8-6 13 1 11-2 11 8 6 6-1 12-1 9-11 7-7 6-13 1-10 4-14-3-8-1-3-10z" fill="#f3efe1"/><path d="M39 18q6-7 11-3l6 7-4 8-7-2-4-6-7-3z" fill="#6c7161"/><circle cx="49" cy="20" r="1"/><path d="M15 18q0-5 6-4m4 10q2-5 6-3" fill="none"/>',
-'<g stroke="#695d34" fill="#d3ae4c"><path d="m12 38 25-30m-15 32L48 8m-20 31L55 18" fill="none"/>'+[0,1,2].map((v)=>'<g transform="translate('+(v*9)+' '+(v===2?7:0)+') rotate(36 24 22)"><path d="M23 33V6m0 22q-9-2-8-10 8 3 8 10zm0-7q-8-3-7-10 7 2 7 10zm0 5q9-3 8-10-7 2-8 10zm0-8q8-4 6-10-6 3-6 10zm0-3q-5-6 0-13 5 6 0 13z"/></g>').join('')+'</g>',
-'<path d="m6 31 9-17 12-3 10 16-5 10-19 1z" fill="#9d9f8d"/><path d="m22 29 7-20 14-4 12 16-9 12z" fill="#888e82"/><path d="m34 38-6-11 11-13 12 5 7 14-10 6z" fill="#b3b6a3"/><path d="m15 14 8 11-10 13m10-13 4-14m2-2 9 7 5-11m-4 9 5 12 7-7m-7 7 4 13" fill="none"/>'];
-const icon=(i)=>'<svg viewBox="0 0 64 44" aria-hidden="true"><g stroke="'+ink+'" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round">'+icons[i]+'</g></svg>';
+const icon = i => '<img width="48" height="40" alt="" src="assets/res-' + names[i].toLowerCase() + '.webp">';
 const terrains=['forest','pasture','fields','hills','mountains','forest','pasture','fields','hills','desert','mountains','fields','forest','pasture','hills','forest','mountains','fields','pasture'];
 const numbers=[5,2,6,3,8,10,9,12,11,0,4,8,10,9,4,5,6,3,11], terrainRes={forest:0,hills:1,pasture:2,fields:3,mountains:4};
 const tiles=[],verts=[],edges=[],vmap=new Map(),emap=new Map();const R=54, W=Math.sqrt(3)*R;
